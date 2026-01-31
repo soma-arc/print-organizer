@@ -1,137 +1,83 @@
-use std::{iter, sync::Arc};
+use std::iter;
+use eframe::{egui, wgpu};
+use wgpu::util::DeviceExt;
+use std::time::Instant;
 
-use winit::{
-    application::ApplicationHandler,
-    event::*,
-    event_loop::{EventLoop, ActiveEventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::Window,
-};
-
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-pub struct State {
-    surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    is_surface_configured: bool,
-    // NEW!
+pub struct MyApp {
+    // wgpuリソース
     render_pipeline: wgpu::RenderPipeline,
-
-    globals_buffer: wgpu::Buffer,                 // 追加
-    globals_bind_group: wgpu::BindGroup,          // 追加
-    globals_bind_group_layout: wgpu::BindGroupLayout, // 追加
-
-    window: Arc<Window>,
+    globals_buffer: wgpu::Buffer,
+    globals_bind_group: wgpu::BindGroup,
+    
+    // オフスクリーンテクスチャ
+    offscreen_texture: wgpu::Texture,
+    offscreen_view: wgpu::TextureView,
+    
+    // eguiテクスチャID
+    texture_id: Option<egui::TextureId>,
+    
+    // レンダリングサイズ
+    render_width: u32,
+    render_height: u32,
+    start_time: Instant,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct GlobalsUniform {
     resolution: [f32; 2],
-    _pad: [f32; 2],
+    time: f32,
+    _pad: [f32; 1],
 }
-use wgpu::util::DeviceExt; 
-impl State {
-    async fn new(window: Arc<Window>) -> anyhow::Result<State> {
-        let size = window.inner_size();
 
-        // The instance is a handle to our GPU
-        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            #[cfg(not(target_arch = "wasm32"))]
-            backends: wgpu::Backends::PRIMARY,
-            #[cfg(target_arch = "wasm32")]
-            backends: wgpu::Backends::GL,
-            ..Default::default()
-        });
-
-        let surface = instance.create_surface(window.clone()).unwrap();
-
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
-
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                // WebGL doesn't support all of wgpu's features, so if
-                // we're building for the web we'll have to disable some.
-                required_limits: if cfg!(target_arch = "wasm32") {
-                    wgpu::Limits::downlevel_webgl2_defaults()
-                } else {
-                    wgpu::Limits::default()
-                },
-                memory_hints: Default::default(),
-                trace: wgpu::Trace::Off, // Trace path
-            })
-            .await
-            .unwrap();
-
-        let surface_caps = surface.get_capabilities(&adapter);
-        // Shader code in this tutorial assumes an Srgb surface texture. Using a different
-        // one will result all the colors comming out darker. If you want to support non
-        // Srgb surfaces, you'll need to account for that when drawing to the frame.
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width,
-            height: size.height,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-
+impl MyApp {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let render_state = cc
+            .wgpu_render_state
+            .as_ref()
+            .expect("WGPU render state not available");
+        
+        let device = &render_state.device;
+        let queue = &render_state.queue;
+        
+        let render_width = 800;
+        let render_height = 600;
+        
+        // シェーダーの作成
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
-
-
+        
+        // グローバルユニフォームの作成
         let globals = GlobalsUniform {
-            resolution: [config.width as f32, config.height as f32],
-            _pad: [0.0, 0.0],
+            resolution: [render_width as f32, render_height as f32],
+            time: 0.0,
+            _pad: [0.0],
         };
-
+        
         let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Globals Uniform Buffer"),
             contents: bytemuck::bytes_of(&globals),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-
+        
         let globals_bind_group_layout = 
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Globals BindGroupLayout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Globals BindGroupLayout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-
+                ],
+            });
         
         let globals_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Globals BindGroup"),
@@ -141,16 +87,15 @@ impl State {
                 resource: globals_buffer.as_entire_binding(),
             }],
         });
-
         
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[&globals_bind_group_layout],
-                immediate_size: 0,
+                push_constant_ranges: &[],
             });
-
-
+        
+        // レンダーパイプラインの作成（Rgba8Unorm形式）
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
@@ -164,7 +109,7 @@ impl State {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent::REPLACE,
                         alpha: wgpu::BlendComponent::REPLACE,
@@ -178,12 +123,8 @@ impl State {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
-                // or Features::POLYGON_MODE_POINT
                 polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
                 unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
             depth_stencil: None,
@@ -192,76 +133,74 @@ impl State {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            // If the pipeline will be used with a multiview render pass, this
-            // tells wgpu to render to just specific texture layers.
-            multiview_mask: None,
-            // Useful for optimizing shader compilation on Android
+            multiview: None,
             cache: None,
         });
-
-        Ok(Self {
-            surface,
-            device,
-            queue,
-            config,
-            is_surface_configured: false,
+        
+        // オフスクリーンテクスチャの作成
+        let offscreen_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Offscreen Texture"),
+            size: wgpu::Extent3d {
+                width: render_width,
+                height: render_height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT 
+                | wgpu::TextureUsages::TEXTURE_BINDING 
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        
+        let offscreen_view = offscreen_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        
+        // テクスチャをeguiに登録
+        let texture_id = {
+            let mut renderer = render_state.renderer.write();
+            renderer.register_native_texture(
+                device,
+                &offscreen_view,
+                wgpu::FilterMode::Linear,
+            )
+        };
+        
+        Self {
             render_pipeline,
             globals_buffer,
             globals_bind_group,
-            globals_bind_group_layout,
-            window,
-        })
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
-        if width > 0 && height > 0 {
-            self.config.width = width;
-            self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
-            self.is_surface_configured = true;
-
-            let globals = GlobalsUniform {
-                resolution: [width as f32, height as f32],
-                _pad: [0.0, 0.0],
-            };
-            self.queue
-                .write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
+            offscreen_texture,
+            offscreen_view,
+            texture_id: Some(texture_id),
+            render_width,
+            render_height,
+            start_time: Instant::now(),
         }
     }
+    
+    fn render_to_texture(&mut self, render_state: &eframe::egui_wgpu::RenderState) {
+        let device = &render_state.device;
+        let queue = &render_state.queue;
 
-    fn handle_key(&mut self, event_loop: &ActiveEventLoop, key: KeyCode, pressed: bool) {
-        match (key, pressed) {
-            (KeyCode::Escape, true) => event_loop.exit(),
-            _ => {}
-        }
-    }
-
-    fn update(&mut self) {}
-
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        self.window.request_redraw();
-
-        // We can't render unless the surface is configured
-        if !self.is_surface_configured {
-            return Ok(());
-        }
-
-        let output = self.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
+        let elapsed_time = self.start_time.elapsed().as_secs_f32();
+        let globals = GlobalsUniform {
+            resolution: [self.render_width as f32, self.render_height as f32],
+            time: elapsed_time,
+            _pad: [0.0],
+        };
+        queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
+        
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
+        
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Offscreen Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &self.offscreen_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -277,173 +216,53 @@ impl State {
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
-                multiview_mask: None,
             });
-
+            
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.globals_bind_group, &[]); // 追加
+            render_pass.set_bind_group(0, &self.globals_bind_group, &[]);
             render_pass.draw(0..6, 0..1);
         }
-
-        self.queue.submit(iter::once(encoder.finish()));
-        output.present();
-
-        Ok(())
+        
+        queue.submit(iter::once(encoder.finish()));
     }
 }
 
-pub struct App {
-    #[cfg(target_arch = "wasm32")]
-    proxy: Option<winit::event_loop::EventLoopProxy<State>>,
-    state: Option<State>,
-}
-
-impl App {
-    pub fn new(#[cfg(target_arch = "wasm32")] event_loop: &EventLoop<State>) -> Self {
-        #[cfg(target_arch = "wasm32")]
-        let proxy = Some(event_loop.create_proxy());
-        Self {
-            state: None,
-            #[cfg(target_arch = "wasm32")]
-            proxy,
+impl eframe::App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        // wgpuでオフスクリーンレンダリング
+        if let Some(render_state) = frame.wgpu_render_state() {
+            self.render_to_texture(render_state);
         }
-    }
-}
-
-impl ApplicationHandler<State> for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        #[allow(unused_mut)]
-        let mut window_attributes = Window::default_attributes()
-            .with_inner_size(winit::dpi::PhysicalSize::new(800, 600));
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            use wasm_bindgen::JsCast;
-            use winit::platform::web::WindowAttributesExtWebSys;
-
-            const CANVAS_ID: &str = "canvas";
-
-            let window = wgpu::web_sys::window().unwrap_throw();
-            let document = window.document().unwrap_throw();
-            let canvas = document.get_element_by_id(CANVAS_ID).unwrap_throw();
-            let html_canvas_element = canvas.unchecked_into();
-            window_attributes = window_attributes.with_canvas(Some(html_canvas_element));
-        }
-
-        let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            // If we are not on web we can use pollster to
-            // await the
-            self.state = Some(pollster::block_on(State::new(window)).unwrap());
-        }
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            if let Some(proxy) = self.proxy.take() {
-                wasm_bindgen_futures::spawn_local(async move {
-                    assert!(proxy
-                        .send_event(
-                            State::new(window)
-                                .await
-                                .expect("Unable to create canvas!!!")
-                        )
-                        .is_ok())
-                });
+        
+        // eguiでUI構築
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Print Organizer");
+            
+            if let Some(texture_id) = self.texture_id {
+                let size = egui::vec2(self.render_width as f32, self.render_height as f32);
+                ui.image(egui::load::SizedTexture::new(texture_id, size));
             }
-        }
-    }
-
-    #[allow(unused_mut)]
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, mut event: State) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            event.window.request_redraw();
-            event.resize(
-                event.window.inner_size().width,
-                event.window.inner_size().height,
-            );
-        }
-        self.state = Some(event);
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _window_id: winit::window::WindowId,
-        event: WindowEvent,
-    ) {
-        let state = match &mut self.state {
-            Some(canvas) => canvas,
-            None => return,
-        };
-
-        match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => state.resize(size.width, size.height),
-            WindowEvent::RedrawRequested => {
-                state.update();
-                match state.render() {
-                    Ok(_) => {}
-                    // Reconfigure the surface if it's lost or outdated
-                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                        let size = state.window.inner_size();
-                        state.resize(size.width, size.height);
-                    }
-                    Err(e) => {
-                        log::error!("Unable to render {}", e);
-                    }
-                }
-            }
-            WindowEvent::MouseInput { state, button, .. } => match (button, state.is_pressed()) {
-                (MouseButton::Left, true) => {}
-                (MouseButton::Left, false) => {}
-                _ => {}
-            },
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(code),
-                        state: key_state,
-                        ..
-                    },
-                ..
-            } => state.handle_key(event_loop, code, key_state.is_pressed()),
-            _ => {}
-        }
+        });
+        
+        // 連続的に再描画
+        ctx.request_repaint();
     }
 }
 
-pub fn run() -> anyhow::Result<()> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        env_logger::init();
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        console_log::init_with_level(log::Level::Info).unwrap_throw();
-    }
-
-    let event_loop = EventLoop::with_user_event().build()?;
-    let mut app = App::new(
-        #[cfg(target_arch = "wasm32")]
-        &event_loop,
-    );
-    event_loop.run_app(&mut app)?;
-
-    Ok(())
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(start)]
-pub fn run_web() -> Result<(), wasm_bindgen::JsValue> {
-    console_error_panic_hook::set_once();
-    run().unwrap_throw();
-
-    Ok(())
-}
-
-fn main() {
-    run().unwrap();
+fn main() -> eframe::Result {
+    env_logger::init();
+    
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([820.0, 680.0])
+            .with_title("Print Organizer"),
+        renderer: eframe::Renderer::Wgpu,
+        ..Default::default()
+    };
+    
+    eframe::run_native(
+        "Print Organizer",
+        options,
+        Box::new(|cc| Ok(Box::new(MyApp::new(cc)))),
+    )
 }

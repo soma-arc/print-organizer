@@ -8,7 +8,8 @@ struct VertexOutput {
 struct Globals {
     // 16byte 境界に揃えるのが安全
     resolution: vec2<f32>,
-    _pad: vec2<f32>,
+    time: f32,
+    _pad: f32,
 };
 
 @group(0) @binding(0)
@@ -48,7 +49,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var uv = in.uv;
     uv = 2.0 * uv - vec2<f32>(1.0);
     uv = uv * vec2<f32>(globals.resolution.x / globals.resolution.y, 1.0);
-    if(distCircle(uv, vec3<f32>(0.0, 0.0, 0.5)) < 0.0) {
+    if(distCircle(uv, vec3<f32>(sin(globals.time), 0.0, 0.5)) < 0.0) {
         return vec4<f32>(1.0, 0.0, 0.0, 1.0);
     }
     return vec4<f32>(in.uv, 0.0, 1.0);
