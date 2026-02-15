@@ -71,9 +71,9 @@
 
 ---
 
-## Phase 3: debug-generate (Rust不要E2E)
+## Phase 3: debug-generate (Rust不要E2E) ✅
 
-### T3.1 sphere / box 距離場生成
+### T3.1 sphere / box 距離場生成 ✅
 - `--debug-generate sphere`: 半径 R の球SDF
 - `--debug-generate box`: 直方体SDF
 - manifest を内部生成 (固定パラメータ)
