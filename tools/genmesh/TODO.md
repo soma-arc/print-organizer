@@ -81,15 +81,15 @@
 
 ---
 
-## Phase 4: VDB構築
+## Phase 4: VDB構築 ✅
 
-### T4.1 OpenVDB初期化 + Grid生成
+### T4.1 OpenVDB初期化 + Grid生成 ✅
 - `openvdb::initialize()` (§6)
 - `Transform::createLinearTransform(voxel_size)` + aabb_min translation
 - FloatGrid, background = background_value_mm
 - Accept: 空の Grid が作成でき、Transform が正しい
 
-### T4.2 ブリックデータ → VDB挿入
+### T4.2 ブリックデータ → VDB挿入 ✅
 - brick 配列を走査し、Grid にボクセル値を設定
 - スパース規約: index にないブリック → background_value_mm (§5.5)
 - f16 → float 変換
