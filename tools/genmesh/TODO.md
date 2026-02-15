@@ -53,16 +53,16 @@
 
 ---
 
-## Phase 2: ブリック入力読み取り
+## Phase 2: ブリック入力読み取り ✅
 
-### T2.1 bricks.index.json パース + 検証
+### T2.1 bricks.index.json パース + 検証 ✅
 - bricks-index.v1.schema.json の全フィールドを読み取り (§5.4)
 - manifest との整合性検証 (§5.6):
   - version, brick_size, dtype, axis_order, dims 一致
   - 重複 (bx,by,bz) がない
 - Accept: valid/invalid fixture で検証パス
 
-### T2.2 bricks.bin 読み取り
+### T2.2 bricks.bin 読み取り ✅
 - offset_bytes + payload_bytes が範囲内か検証
 - payload_bytes == B^3 * sizeof(dtype) (raw)
 - CRC32 検証 (任意フィールドがある場合)
