@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/genmesh/bricks-index.v1.schema.json",
+  "title": "genmesh bricks-index v1",
+  "description": "ブリック分割された距離場データのインデックスファイル (bricks.index.json)",
+  "type": "object",
+  "required": [
+    "version",
+    "brick_size",
+    "dtype",
+    "axis_order",
+    "dims",
+    "bricks"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "スキーマバージョン (v1固定)"
+    },
+    "brick_size": {
+      "type": "integer",
+      "enum": [32, 64, 128],
+      "description": "ブリックサイズ B (BxBxB voxels)"
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["f16", "f32"],
+      "description": "距離値の格納型"
+    },
+    "axis_order": {
+      "type": "string",
+      "const": "x-fastest",
+      "description": "軸順序 (v1では 'x-fastest' 固定)"
+    },
+    "dims": {
+      "type": "array",
+      "description": "グリッド次元数 [nx, ny, nz] (manifestと一致)",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "bricks": {
+      "type": "array",
+      "description": "ブリック定義の配列",
+      "items": {
+        "type": "object",
+        "required": [
+          "bx",
+          "by",
+          "bz",
+          "offset_bytes",
+          "payload_bytes",
+          "encoding"
+        ],
+        "properties": {
+          "bx": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "ブリックX座標"
+          },
+          "by": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "ブリックY座標"
+          },
+          "bz": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "ブリックZ座標"
+          },
+          "offset_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "bricks.bin内のオフセット (bytes)"
+          },
+          "payload_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "ペイロードサイズ (bytes)"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": ["raw"],
+            "description": "エンコーディング (v1では 'raw' のみ)"
+          },
+          "crc32": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{8}$",
+            "description": "ペイロードのCRC32 (任意, 8桁hex)"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

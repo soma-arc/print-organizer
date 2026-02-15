@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/genmesh/manifest.v1.schema.json",
+  "title": "genmesh manifest v1",
+  "description": "距離場＋メタデータを定義するマニフェストファイル (project.json)",
+  "type": "object",
+  "required": [
+    "version",
+    "coordinate_system",
+    "units",
+    "aabb_min",
+    "aabb_size",
+    "voxel_size",
+    "dims",
+    "sample_at",
+    "axis_order",
+    "distance_sign",
+    "iso",
+    "adaptivity",
+    "narrow_band",
+    "brick",
+    "dtype",
+    "background_value_mm",
+    "hashes"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "スキーマバージョン (v1固定)"
+    },
+    "coordinate_system": {
+      "type": "object",
+      "description": "座標系定義 (v1では固定値)",
+      "required": ["handedness", "up_axis", "front_axis"],
+      "properties": {
+        "handedness": {
+          "type": "string",
+          "const": "right",
+          "description": "右手系 (v1では 'right' 固定)"
+        },
+        "up_axis": {
+          "type": "string",
+          "const": "Y",
+          "description": "上方向軸 (v1では 'Y' 固定)"
+        },
+        "front_axis": {
+          "type": "string",
+          "const": "+Z",
+          "description": "前方向軸 (v1では '+Z' 固定)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "units": {
+      "type": "string",
+      "const": "mm",
+      "description": "単位 (v1では 'mm' 固定)"
+    },
+    "aabb_min": {
+      "type": "array",
+      "description": "バウンディングボックス最小点 [x, y, z] (mm)",
+      "items": { "type": "number" },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "aabb_size": {
+      "type": "array",
+      "description": "バウンディングボックスサイズ [sx, sy, sz] (mm, 全成分 > 0)",
+      "items": { "type": "number", "exclusiveMinimum": 0 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "voxel_size": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "ボクセルサイズ (mm, > 0)"
+    },
+    "dims": {
+      "type": "array",
+      "description": "グリッド次元数 [nx, ny, nz] (全成分 > 0)",
+      "items": { "type": "integer", "minimum": 1 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "sample_at": {
+      "type": "string",
+      "const": "voxel_center",
+      "description": "サンプリング位置 (v1では 'voxel_center' 固定)"
+    },
+    "axis_order": {
+      "type": "string",
+      "const": "x-fastest",
+      "description": "軸順序 (v1では 'x-fastest' 固定)"
+    },
+    "distance_sign": {
+      "type": "string",
+      "const": "negative_inside_positive_outside",
+      "description": "距離符号規約 (v1ではこの値のみ許可)"
+    },
+    "iso": {
+      "type": "number",
+      "default": 0.0,
+      "description": "iso面の値 (既定 0.0)"
+    },
+    "adaptivity": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "メッシュ適応度 (0.0〜1.0)"
+    },
+    "narrow_band": {
+      "type": "object",
+      "description": "ナローバンド設定",
+      "required": ["half_width_voxels"],
+      "properties": {
+        "half_width_voxels": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "ナローバンド半幅 (voxel単位, >= 1)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "brick": {
+      "type": "object",
+      "description": "ブリック設定",
+      "required": ["size"],
+      "properties": {
+        "size": {
+          "type": "integer",
+          "enum": [32, 64, 128],
+          "default": 64,
+          "description": "ブリックサイズ (32/64/128)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dtype": {
+      "type": "string",
+      "enum": ["f16", "f32"],
+      "description": "距離値の格納型"
+    },
+    "background_value_mm": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 1000.0,
+      "description": "バンド外の背景距離 (mm, > 0)"
+    },
+    "hashes": {
+      "type": "object",
+      "description": "整合性検証用ハッシュ (フィールド必須、値は任意)",
+      "properties": {
+        "manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "description": "manifest自身のSHA256 (任意)"
+        },
+        "bricks_bin_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "description": "bricks.binのSHA256 (任意)"
+        },
+        "bricks_index_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "description": "bricks.index.jsonのSHA256 (任意)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "shader": {
+      "type": "object",
+      "description": "生成シェーダ情報 (追跡用・任意)",
+      "properties": {
+        "path": { "type": "string" },
+        "hash": { "type": "string" }
+      }
+    },
+    "git": {
+      "type": "object",
+      "description": "Git情報 (追跡用・任意)",
+      "properties": {
+        "commit": { "type": "string" }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "description": "生成ツール情報 (追跡用・任意)",
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "build_id": { "type": "string" }
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "description": "ハードウェア情報 (追跡用・任意)",
+      "properties": {
+        "gpu": { "type": "string" },
+        "driver": { "type": "string" },
+        "os": { "type": "string" }
+      }
+    },
+    "timestamps": {
+      "type": "object",
+      "description": "タイムスタンプ (追跡用・任意)",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "作成日時 (ISO 8601)"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

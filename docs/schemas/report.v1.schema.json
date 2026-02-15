@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/genmesh/report.v1.schema.json",
+  "title": "genmesh report v1",
+  "description": "genmesh実行結果のレポートファイル (report.json)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "stage",
+    "started_at_utc",
+    "inputs",
+    "timing_ms",
+    "stats",
+    "warnings",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "スキーマバージョン (v1固定)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure"],
+      "description": "実行結果ステータス"
+    },
+    "stage": {
+      "type": "string",
+      "enum": ["validate", "read", "vdb_build", "meshing", "write"],
+      "description": "最終ステージ (失敗時は停止時点)"
+    },
+    "started_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "開始時刻 (ISO 8601, UTC)"
+    },
+    "ended_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "終了時刻 (ISO 8601, UTC, 可能なら)"
+    },
+    "inputs": {
+      "type": "object",
+      "description": "入力情報",
+      "required": ["manifest_path", "in_dir", "dtype", "brick_size", "dims", "voxel_size"],
+      "properties": {
+        "manifest_path": {
+          "type": "string",
+          "description": "manifestファイルのパス"
+        },
+        "in_dir": {
+          "type": "string",
+          "description": "入力ディレクトリのパス"
+        },
+        "bricks_path": {
+          "type": "string",
+          "description": "bricks.binのパス (任意)"
+        },
+        "dtype": {
+          "type": "string",
+          "enum": ["f16", "f32"],
+          "description": "距離値の格納型"
+        },
+        "brick_size": {
+          "type": "integer",
+          "enum": [32, 64, 128],
+          "description": "ブリックサイズ"
+        },
+        "dims": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "グリッド次元数 [nx, ny, nz]"
+        },
+        "voxel_size": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "ボクセルサイズ (mm)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "timing_ms": {
+      "type": "object",
+      "description": "各フェーズの処理時間 (ms)",
+      "required": ["total"],
+      "properties": {
+        "total": {
+          "type": "number",
+          "minimum": 0,
+          "description": "全体処理時間"
+        },
+        "validate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "検証フェーズ (manifest/index/binの整合チェック)"
+        },
+        "read": {
+          "type": "number",
+          "minimum": 0,
+          "description": "読み取りフェーズ (bricks.index.json, bricks.bin)"
+        },
+        "vdb_build": {
+          "type": "number",
+          "minimum": 0,
+          "description": "VDB構築フェーズ"
+        },
+        "meshing": {
+          "type": "number",
+          "minimum": 0,
+          "description": "メッシュ化フェーズ (volumeToMesh)"
+        },
+        "write": {
+          "type": "number",
+          "minimum": 0,
+          "description": "書き込みフェーズ (STL/VDB/report)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stats": {
+      "type": "object",
+      "description": "統計情報",
+      "required": [
+        "aabb_min",
+        "aabb_max",
+        "brick_count",
+        "triangle_count",
+        "quad_count",
+        "vertex_count",
+        "degenerate_count"
+      ],
+      "properties": {
+        "aabb_min": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "入力AABB最小点 [x, y, z]"
+        },
+        "aabb_max": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "入力AABB最大点 [x, y, z]"
+        },
+        "brick_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "処理したブリック数"
+        },
+        "triangle_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "出力三角形数"
+        },
+        "quad_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "volumeToMeshからのquad数"
+        },
+        "vertex_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "出力頂点数"
+        },
+        "degenerate_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "縮退三角形数"
+        },
+        "mesh_aabb_min": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "出力メッシュAABB最小点 (メッシュ生成時のみ)"
+        },
+        "mesh_aabb_max": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "出力メッシュAABB最大点 (メッシュ生成時のみ)"
+        },
+        "active_voxel_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "アクティブボクセル数 (計測可能時のみ)"
+        },
+        "memory_usage_mb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "メモリ使用量 (MB, 計測可能時のみ)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "description": "警告リスト",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "description": "エラーリスト",
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/diagnostic" },
+          {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "caused_by": {
+                "type": "string",
+                "description": "根本原因 (任意)"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "progress": {
+      "type": "object",
+      "description": "進捗情報 (失敗時のpartial情報)",
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": ["validate", "read", "vdb_build", "meshing", "write"],
+          "description": "現在のステージ"
+        },
+        "percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "進捗率 (%)"
+        },
+        "detail": {
+          "type": "string",
+          "description": "詳細情報"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^GENMESH_[EW][0-9]{4}$",
+          "description": "エラー/警告コード (GENMESH_[E|W]<4桁>)"
+        },
+        "message": {
+          "type": "string",
+          "description": "人間向けメッセージ"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["validation", "io", "env", "vdb", "meshing", "unexpected"],
+          "description": "分類"
+        },
+        "context": {
+          "type": "object",
+          "description": "機械可読な追加情報",
+          "additionalProperties": true
+        },
+        "hint": {
+          "type": "string",
+          "description": "ユーザー向けヒント"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
