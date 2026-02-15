@@ -3,6 +3,8 @@
         "/^cargo build$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "New-Item": true,
+        "Out-Null": true
     }
 }
