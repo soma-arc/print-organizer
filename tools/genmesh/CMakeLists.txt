@@ -26,6 +26,7 @@ list(FILTER LIB_SOURCES EXCLUDE REGEX "main\\.cpp$")
 add_library(genmesh_lib STATIC ${LIB_SOURCES})
 target_include_directories(genmesh_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(genmesh_lib PUBLIC
+    OpenVDB::openvdb
     nlohmann_json::nlohmann_json
 )
 
