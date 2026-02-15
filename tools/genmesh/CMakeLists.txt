@@ -19,15 +19,23 @@ target_link_libraries(genmesh PRIVATE
     nlohmann_json::nlohmann_json
 )
 
+# ---------- library (for tests to link against) ----------
+file(GLOB_RECURSE LIB_SOURCES "src/*.cpp")
+list(FILTER LIB_SOURCES EXCLUDE REGEX "main\\.cpp$")
+
+add_library(genmesh_lib STATIC ${LIB_SOURCES})
+target_include_directories(genmesh_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(genmesh_lib PUBLIC
+    nlohmann_json::nlohmann_json
+)
+
 # ---------- tests ----------
 enable_testing()
 
-file(GLOB_RECURSE TEST_SOURCES "tests/*.cpp")
-if(TEST_SOURCES)
-    add_executable(genmesh_tests ${TEST_SOURCES})
-    target_include_directories(genmesh_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    target_link_libraries(genmesh_tests PRIVATE
-        nlohmann_json::nlohmann_json
-    )
-    add_test(NAME genmesh_tests COMMAND genmesh_tests)
-endif()
+file(GLOB TEST_FILES "tests/test_*.cpp")
+foreach(TEST_FILE ${TEST_FILES})
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
+    add_executable(${TEST_NAME} ${TEST_FILE})
+    target_link_libraries(${TEST_NAME} PRIVATE genmesh_lib)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endforeach()

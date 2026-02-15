@@ -7,20 +7,20 @@
 
 ---
 
-## Phase 0: ビルド基盤
+## Phase 0: ビルド基盤 ✅
 
-### T0.1 CMake + vcpkg セットアップ
+### T0.1 CMake + vcpkg セットアップ ✅
 - vcpkg.json で openvdb, nlohmann-json を宣言
 - CMakePresets.json を追加 (configure + build preset)
 - `cmake --build --preset default` でビルドが通る
 - Accept: 空の main.cpp で実行ファイルが生成される
 
-### T0.2 エラーコード・終了コード基盤
+### T0.2 エラーコード・終了コード基盤 ✅
 - `error_code.h`: GENMESH_E/W コード定数 (§9.3, §9.4)
 - `exit_code.h`: 終了コード enum (0,1,2,3,4,5) (§9.1)
 - Accept: ヘッダが include でき、ビルドが通る
 
-### T0.3 構造化ログ (stderr)
+### T0.3 構造化ログ (stderr) ✅
 - §9.2 の形式に従う stderr ログユーティリティ
   - `LEVEL CODE: message | key=value ...`
 - `--log-level` でフィルタ可能
