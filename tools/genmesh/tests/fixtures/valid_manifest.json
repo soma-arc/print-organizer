@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "coordinate_system": {
+    "handedness": "right",
+    "up_axis": "Y",
+    "front_axis": "+Z"
+  },
+  "units": "mm",
+  "aabb_min": [0.0, 0.0, 0.0],
+  "aabb_size": [64.0, 64.0, 64.0],
+  "voxel_size": 1.0,
+  "dims": [64, 64, 64],
+  "sample_at": "voxel_center",
+  "axis_order": "x-fastest",
+  "distance_sign": "negative_inside_positive_outside",
+  "iso": 0.0,
+  "adaptivity": 0.0,
+  "narrow_band": { "half_width_voxels": 3 },
+  "brick": { "size": 64 },
+  "dtype": "f32",
+  "background_value_mm": 1000.0,
+  "hashes": {}
+}
