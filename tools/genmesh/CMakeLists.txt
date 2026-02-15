@@ -6,6 +6,11 @@ cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# MSVC: /bigobj needed for OpenVDB heavy template instantiations (VolumeToMesh)
+if(MSVC)
+    add_compile_options(/bigobj)
+endif()
+
 find_package(OpenVDB CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
