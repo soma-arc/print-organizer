@@ -28,16 +28,16 @@
 
 ---
 
-## Phase 1: CLI引数パース + manifest検証
+## Phase 1: CLI引数パース + manifest検証 ✅
 
-### T1.1 CLI引数パース
+### T1.1 CLI引数パース ✅
 - `--manifest`, `--in`, `--out` (必須)
 - `--write-stl`, `--write-vdb`, `--iso`, `--adaptivity`
 - `--force`, `--log-level`
 - `--debug-generate sphere|box`
 - Accept: 不正引数 → exit 1, 必須引数欠落 → exit 2, ヘルプ表示
 
-### T1.2 manifest パース + 検証
+### T1.2 manifest パース + 検証 ✅
 - manifest.v1.schema.json の必須フィールドを読み取り (§4.2)
 - 整合性ルール全項目を検証 (§4.3)
   - dims * voxel_size == aabb_size (eps 1e-6)
@@ -46,7 +46,7 @@
 - 不一致は exit 2 + 構造化エラー
 - Accept: valid/invalid fixture で検証パス / エラーコード一致
 
-### T1.3 出力ディレクトリ処理
+### T1.3 出力ディレクトリ処理 ✅
 - `--out` mkdir -p (§3.2)
 - 既存ファイル検出 → exit 3 / `--force` で許可 (§3.3)
 - Accept: 存在しないdir作成, 既存ファイルでエラー, --force で続行
