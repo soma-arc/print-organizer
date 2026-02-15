@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "brick_size": 64,
+  "dtype": "f32",
+  "axis_order": "x-fastest",
+  "dims": [64, 64, 64],
+  "bricks": [
+    {
+      "bx": 0,
+      "by": 0,
+      "bz": 0,
+      "offset_bytes": 0,
+      "payload_bytes": 1048576,
+      "encoding": "raw"
+    }
+  ]
+}
