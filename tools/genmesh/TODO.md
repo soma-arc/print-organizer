@@ -162,7 +162,7 @@
 
 ---
 
-## Phase 7: テスト整備
+## Phase 7: テスト整備 ✅
 
 ### T7.1 fixtures 作成
 - 最小 manifest + 1-brick の valid fixture
