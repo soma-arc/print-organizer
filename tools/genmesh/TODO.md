@@ -116,6 +116,20 @@
 
 ---
 
+## Phase 5.5: README 整備 ✅
+
+### T5.5.1 README.md 作成 ✅
+- プロジェクト概要 (genmesh が何をするツールか)
+- 前提条件 (vcpkg, CMake, MSVC, OpenVDB 等)
+- ビルド手順 (cmake --preset / --build / ctest)
+- 使い方 (CLI引数一覧, 基本的な実行例)
+- debug-generate によるクイックスタート
+- 入出力ファイル仕様の概要 (manifest, bricks, STL, VDB, report.json)
+- ライセンス / 参照リンク
+- Accept: 新規開発者が README だけで clone → build → 実行できる
+
+---
+
 ## Phase 6: report.json
 
 ### T6.1 report.json 生成
