@@ -146,7 +146,7 @@
 
 ---
 
-## Phase 6: report.json
+## Phase 6: report.json ✅
 
 ### T6.1 report.json 生成
 - report.v1.schema.json に準拠 (§8.2)
