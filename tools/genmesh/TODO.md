@@ -130,6 +130,22 @@
 
 ---
 
+## Phase 5.8: パイプライン統合 (main.cpp)
+
+### T5.8.1 main.cpp パイプライン実装
+- Phase 3〜5 の各モジュールを main.cpp で接続:
+  1. prepare_output_dir
+  2. debug-generate or (load_manifest → load_bricks_index → load_bricks_bin)
+  3. vdb_init → build_vdb
+  4. extract_mesh
+  5. write_stl (--write-stl)
+  6. write_vdb (--write-vdb)
+- 各ステップの失敗で適切な exit code を返す
+- Accept: `genmesh --debug-generate sphere --out out/` で mesh.stl が生成される
+- Accept: `genmesh --debug-generate sphere --out out/ --write-vdb` で volume.vdb も生成される
+
+---
+
 ## Phase 6: report.json
 
 ### T6.1 report.json 生成
