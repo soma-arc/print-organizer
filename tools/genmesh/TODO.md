@@ -130,9 +130,9 @@
 
 ---
 
-## Phase 5.8: パイプライン統合 (main.cpp)
+## Phase 5.8: パイプライン統合 (main.cpp) ✅
 
-### T5.8.1 main.cpp パイプライン実装
+### T5.8.1 main.cpp パイプライン実装 ✅
 - Phase 3〜5 の各モジュールを main.cpp で接続:
   1. prepare_output_dir
   2. debug-generate or (load_manifest → load_bricks_index → load_bricks_bin)
