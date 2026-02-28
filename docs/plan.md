@@ -275,7 +275,7 @@
     - WGSL ユーザーSDF → `raymarch_template.wgsl` に挿入 → そのまま使用
     - GLSL ユーザーSDF → `raymarch_template.glsl` に挿入 → naga で全体を WGSL 変換
     - 既存の `sdf_baker::shader_compose::{load_shader, glsl_to_wgsl, validate_wgsl}` を再利用
-  - GPU デバイスは **独立を維持**（eframe は wgpu 27、sdf-baker は wgpu 25 で型が異なるため共有不可。sdf-baker の wgpu アップグレードまで不可能）
+  - GPU デバイスは **独立を維持**（eframe と sdf-baker は共に wgpu 27 だが、eframe 内部の device は egui-wgpu が管理しており直接共有は非自明。将来的にデバイス共有を検討可能）
 - サブタスク
   - **L1**: レイマーチテンプレート作成（`src/shaders/raymarch_template.wgsl`, `src/shaders/raymarch_template.glsl`）
     - Uniform: `camera_pos`, `camera_target`, `camera_up`, `aabb_min`, `aabb_size`, `resolution`, `time`
@@ -328,7 +328,7 @@
 
 - **WGSL/GLSL**: 両方対応。WGSL を一次入力、GLSL は naga 経由変換（R4 で実装済み）
 - **OpenVDB 連携の I/O 形式**: ブリック距離場（f32 LE）+ manifest.json（R2/R5 で実装済み）
-- **GPU デバイス（G1/G2）**: 独立（eframe wgpu 27 と sdf-baker wgpu 25 は型不一致のため共有不可）
+- **GPU デバイス（G1/G2）**: 独立（eframe と sdf-baker は共に wgpu 27 だが、eframe 内部の device は egui-wgpu が管理しており直接共有は非自明。当面は独立で運用）
 - **非同期モデル**: `std::thread` + `mpsc`（tokio 不要）
 - **ファイルダイアログ**: `rfd` クレート
 - **プレビュー方式**: レイマーチ（フラグメントシェーダ）
@@ -336,7 +336,7 @@
 
 ### 9.1 未確定
 
-- GPU デバイス共有は sdf-baker の wgpu 27 アップグレード後に再検討
+- GPU デバイス共有は eframe の wgpu device を sdf-baker に渡す方法が判明次第、再検討
 - ボリューム表現（3D texture / buffer / スパース）— プレビューがレイマーチなので当面不要
 - 解像度の上限、メモリ制約の扱い
 
