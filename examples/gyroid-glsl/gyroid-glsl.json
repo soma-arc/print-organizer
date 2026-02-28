@@ -1,0 +1,13 @@
+{
+    "shader": "gyroid.glsl",
+    "out": "output/gyroid-glsl",
+    "grid": {
+        "aabb_min": [-64, -64, -64],
+        "aabb_size": [128, 128, 128],
+        "brick_size": 64
+    },
+    "genmesh": {
+        "path": "tools/genmesh/build/Debug/genmesh.exe",
+        "write_vdb": true
+    }
+}
