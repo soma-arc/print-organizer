@@ -12,5 +12,13 @@ env_logger = "0.10"
 log = "0.4"
 bytemuck = { version = "1", features = ["derive"] }
 eframe = { version = "0.33.3", features = ["wgpu"] }
+sdf-baker = { path = "crates/sdf-baker" }
+rfd = "0.15"
+serde_json = "1"
+
+# naga 27 (eframe→wgpu 27 経由) と naga 25 (sdf-baker→wgpu 25 経由) が
+# codespan-reporting の feature を union し、naga 27 が termcolor なしでは
+# コンパイルできなくなる問題を回避する。sdf-baker を wgpu 27 に移行したら削除可。
+naga = { version = "27", features = ["termcolor"], default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
