@@ -242,7 +242,7 @@
   - `genmesh --debug-generate sphere --voxel-size 0.2 --aabb 100 --half-width-voxels 8 ...` のように、内部生成SDFから距離場を作れる（最小で sphere/box）
   - または `--in-dense-raw`（dense入力）を追加し、ブリックI/Oの層を切り分けてテストできる
 
-### Task K: GUI 統合 Phase G1 — JSON 読み込み + bake + ファイル出力
+### ✅ Task K: GUI 統合 Phase G1 — JSON 読み込み + bake + ファイル出力 (f16312b)
 
 - 前提
   - `crates/sdf-baker` の lib API（`config::load_config`, `config::resolve_config`, `compute::*`, `bricks_writer::*`, `genmesh_runner::*`）を GUI から呼び出す
