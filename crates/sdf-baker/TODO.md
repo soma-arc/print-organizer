@@ -231,7 +231,7 @@ GLSL 版 (R4 で追加):
 
 ---
 
-## Phase R3: genmesh 呼び出し + report 解析
+## Phase R3: genmesh 呼び出し + report 解析 ✅ (b228dc5)
 
 ### R3.1 genmesh 実行 (genmesh_runner.rs)
 - `run_genmesh(config) -> Result<GenmeshResult>`:
