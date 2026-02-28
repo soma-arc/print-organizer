@@ -175,7 +175,10 @@ pub fn create_compute_pipeline(
     Ok((pipeline, bind_group_layout))
 }
 
-/// Bake all bricks in the grid, skipping background-only bricks.
+/// Bake all bricks in the grid, with progress logging and sparse optimization.
+///
+/// Background-only bricks (all values at or beyond `background_value`) are marked
+/// as inactive but still stored to preserve brick coordinates for the index.
 pub fn bake_all_bricks(
     ctx: &GpuContext,
     pipeline: &wgpu::ComputePipeline,
@@ -183,22 +186,39 @@ pub fn bake_all_bricks(
     config: &BakeConfig,
 ) -> Result<Vec<BrickResult>> {
     let counts = config.brick_counts();
-    let mut results = Vec::new();
+    let total_bricks = (counts[0] * counts[1] * counts[2]) as usize;
+    let mut results = Vec::with_capacity(total_bricks);
+    let mut processed = 0usize;
+
+    log::info!(
+        "Baking {} bricks (grid {}x{}x{}, brick_size={})...",
+        total_bricks,
+        counts[0],
+        counts[1],
+        counts[2],
+        config.brick_size,
+    );
 
     for bz in 0..counts[2] {
         for by in 0..counts[1] {
             for bx in 0..counts[0] {
+                processed += 1;
+                if total_bricks > 1 {
+                    log::info!("  Brick {processed}/{total_bricks} ({bx},{by},{bz})...");
+                }
+
                 let values = bake_brick(ctx, pipeline, bind_group_layout, config, bx, by, bz)?;
 
-                // Check if all values are at or beyond the background distance
+                // Sparse optimization: check if all values are at or beyond
+                // the background distance (brick contains no surface)
                 let is_background = values
                     .iter()
                     .all(|&v| v.abs() >= config.background_value);
 
                 if is_background {
-                    log::debug!("Brick ({bx},{by},{bz}): background — skipped");
+                    log::debug!("  → background (skipped from output)");
                 } else {
-                    log::debug!("Brick ({bx},{by},{bz}): active ({} voxels)", values.len());
+                    log::debug!("  → active ({} voxels)", values.len());
                 }
 
                 results.push(BrickResult {
