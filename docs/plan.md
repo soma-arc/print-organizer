@@ -270,22 +270,47 @@
 
 - 前提
   - Task K 完了後に着手
-  - ユーザーの `fn sdf(p: vec3<f32>) -> f32` をレイマーチングフラグメントシェーダに埋め込み、リアルタイム描画する
-  - GPU デバイスを **共有** に移行する検討を行う（bake 結果をプレビューに流す zero-copy の可能性）
+  - ユーザーの SDF 関数をレイマーチングフラグメントシェーダに埋め込み、リアルタイム描画する
+  - **WGSL / GLSL 両対応**: sdf-baker の compute テンプレートと同じパターンで、レイマーチ用テンプレートも WGSL・GLSL 両方を用意する
+    - WGSL ユーザーSDF → `raymarch_template.wgsl` に挿入 → そのまま使用
+    - GLSL ユーザーSDF → `raymarch_template.glsl` に挿入 → naga で全体を WGSL 変換
+    - 既存の `sdf_baker::shader_compose::{load_shader, glsl_to_wgsl, validate_wgsl}` を再利用
+  - GPU デバイスは **独立を維持**（eframe は wgpu 27、sdf-baker は wgpu 25 で型が異なるため共有不可。sdf-baker の wgpu アップグレードまで不可能）
+- サブタスク
+  - **L1**: レイマーチテンプレート作成（`src/shaders/raymarch_template.wgsl`, `src/shaders/raymarch_template.glsl`）
+    - Uniform: `camera_pos`, `camera_target`, `camera_up`, `aabb_min`, `aabb_size`, `resolution`, `time`
+    - `{{USER_SDF}}` プレースホルダ（compute テンプレートと同一方式）
+    - レイマーチループ + phong/normal ライティング
+  - **L2**: シェーダ合成モジュール（`src/preview_compose.rs`）
+    - `compose_preview(lang, user_sdf) -> Result<String>` (WGSL ソースを返す)
+    - `load_shader` は `sdf_baker::shader_compose` から再利用
+    - naga validate / GLSL→WGSL 変換関数も再利用
+  - **L3**: Uniform 拡張 + パイプライン再構築
+    - `GlobalsUniform` をカメラ + AABB パラメータに拡張
+    - JSON 読み込み時またはシェーダ変更時に `render_pipeline` を再作成
+    - コンパイルエラー時は前のパイプラインを維持（フォールバック）
+  - **L4**: カメラ操作
+    - orbit（左ドラッグ）/ zoom（ホイール）/ pan（中ボタンドラッグ）
+    - AABB 中心をデフォルトのカメラターゲットに設定
+  - **L5**: AABB + ブリック分割の可視化（ワイヤーフレーム描画）
+  - **L6**: オフスクリーンテクスチャのリサイズ対応（パネルサイズに追従）
 - 変更箇所
-  - `src/shader.wgsl` → 動的生成に切り替え（レイマーチテンプレート + ユーザー sdf 関数を合成）
-  - `sdf-baker/shader_compose.rs` の拡張、またはルート側に別テンプレートを用意
-  - `src/app.rs`: JSON 読み込み時に render_pipeline を再構築。カメラ操作 uniform 追加
-  - sdf-baker に `GpuContext::from_existing(device, queue)` コンストラクタ追加（デバイス共有時）
-- UI 構成
-  - メインパネル: レイマーチによるSDF サーフェス描画
-  - カメラ操作: マウスドラッグで orbit / ホイールで zoom / 中ボタンで pan
-  - AABB ワイヤーフレーム + グリッド分割の可視化（§6.4 プレビュー要件に対応）
+  - `src/shaders/raymarch_template.wgsl` (新規)
+  - `src/shaders/raymarch_template.glsl` (新規)
+  - `src/preview_compose.rs` (新規)
+  - `src/graphics/uniform.rs`: GlobalsUniform 拡張
+  - `src/graphics/pipeline.rs`: create_render_pipeline にバインドグループ変更
+  - `src/app.rs`: パイプライン再構築ロジック + カメラ状態 + リサイズ
+  - `src/shader.wgsl`: 不要 → 削除（動的生成に移行）
+  - sdf-baker 側の変更は不要
 - Done when
-  - JSON を開くと SDF がリアルタイムプレビューされる
+  - WGSL の JSON を開くと SDF がレイマーチでリアルタイムプレビューされる
+  - GLSL の JSON を開いても同様にプレビューされる
   - カメラ操作でインタラクティブに視点変更できる
   - shader コンパイルエラー時は前のパイプラインで描画継続（落ちない）
   - AABB 範囲とブリック分割が可視化される
+  - パネルリサイズ時にプレビュー解像度が追従する
+  - JSON 未読み込み時はビルトイン sphere SDF をプレビュー表示する
 
 ## 9. 主要な意思決定ポイント
 
@@ -293,15 +318,16 @@
 
 - **WGSL/GLSL**: 両方対応。WGSL を一次入力、GLSL は naga 経由変換（R4 で実装済み）
 - **OpenVDB 連携の I/O 形式**: ブリック距離場（f32 LE）+ manifest.json（R2/R5 で実装済み）
-- **GPU デバイス（G1）**: 独立（eframe と sdf-baker で別デバイス）
+- **GPU デバイス（G1/G2）**: 独立（eframe wgpu 27 と sdf-baker wgpu 25 は型不一致のため共有不可）
 - **非同期モデル**: `std::thread` + `mpsc`（tokio 不要）
 - **ファイルダイアログ**: `rfd` クレート
+- **プレビュー方式**: レイマーチ（フラグメントシェーダ）
+- **プレビューテンプレート**: WGSL / GLSL 両方用意（compute テンプレートと同一パターン）
 
 ### 9.1 未確定
 
-- **GPU デバイス共有（G2）**: eframe の device を sdf-baker に渡すか、独立を維持するか。G2 着手時に判断
-- プレビューは「レイマーチ」か「メッシュ簡易生成（スライス/等値面）」か → G2 で「レイマーチ」を第一候補
-- ボリューム表現（3D texture / buffer / スパース）
+- GPU デバイス共有は sdf-baker の wgpu 27 アップグレード後に再検討
+- ボリューム表現（3D texture / buffer / スパース）— プレビューがレイマーチなので当面不要
 - 解像度の上限、メモリ制約の扱い
 
 ## 10. インタビュー（詰めるための質問リスト）
