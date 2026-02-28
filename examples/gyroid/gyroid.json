@@ -1,6 +1,6 @@
 {
     "shader": "gyroid.wgsl",
-    "out": "out/gyroid",
+    "out": "output/gyroid",
     "grid": {
         "aabb_min": [-64, -64, -64],
         "aabb_size": [128, 128, 128],

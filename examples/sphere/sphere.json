@@ -1,6 +1,6 @@
 {
     "shader": "sphere.wgsl",
-    "out": "out/sphere",
+    "out": "output/sphere",
     "grid": {
         "aabb_size": [64, 64, 64],
         "brick_size": 64

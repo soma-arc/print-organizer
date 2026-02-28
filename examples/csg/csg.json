@@ -1,6 +1,6 @@
 {
     "shader": "csg.wgsl",
-    "out": "out/csg",
+    "out": "output/csg",
     "grid": {
         "aabb_size": [128, 128, 128],
         "brick_size": 64
