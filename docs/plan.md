@@ -242,12 +242,66 @@
   - `genmesh --debug-generate sphere --voxel-size 0.2 --aabb 100 --half-width-voxels 8 ...` のように、内部生成SDFから距離場を作れる（最小で sphere/box）
   - または `--in-dense-raw`（dense入力）を追加し、ブリックI/Oの層を切り分けてテストできる
 
-## 9. 主要な意思決定ポイント（未確定）
+### Task K: GUI 統合 Phase G1 — JSON 読み込み + bake + ファイル出力
 
-- **WGSL/GLSLどちらを一次入力にするか**
-- プレビューは「レイマーチ」か「メッシュ簡易生成（スライス/等値面）」か
+- 前提
+  - `crates/sdf-baker` の lib API（`config::load_config`, `config::resolve_config`, `compute::*`, `bricks_writer::*`, `genmesh_runner::*`）を GUI から呼び出す
+  - GPU デバイスは **独立**（eframe の wgpu device と sdf-baker の `init_gpu()` は別インスタンス）。VRAM 2重消費だが bake 完了後に drop されるため実用上問題なし
+  - 非同期モデルは `std::thread::spawn` + `std::sync::mpsc::channel`。tokio は不要（GPU compute 待ちのみ、pollster と競合リスク回避）
+  - ファイルダイアログは `rfd` クレート（eframe 公式実績あり、Windows 追加依存なし）
+- 変更箇所
+  - `Cargo.toml`（ルート）: `sdf-baker = { path = "crates/sdf-baker" }` と `rfd` を依存追加
+  - `src/app.rs`: UI 状態（`config_path`, `resolved`, `bake_status`）追加、サイドパネル UI
+  - sdf-baker 側の変更は不要
+- UI 構成
+  - サイドパネル:
+    - 「JSON を開く」ボタン → `rfd::FileDialog` でファイル選択 → `load_config` + `resolve_config` で即パース
+    - パース結果のパラメータ表示（shader, grid dims, brick_size, voxel_size 等）
+    - 「Bake & Export」ボタン → 別スレッドで bake パイプライン実行 → 完了時にステータス更新
+    - ステータス表示（Idle / Running / Done(成功/失敗)）
+  - メインパネル: 既存のオフスクリーン描画をそのまま維持（G2 でプレビューに差し替え）
+- Done when
+  - `examples/sphere/sphere.json` を GUI で開き、パラメータが表示される
+  - 「Bake & Export」で STL が出力される（UI はブロックしない）
+  - bake 中にプログレス（またはスピナー）が表示され、完了/失敗がステータスに反映される
+  - エラー時（不正 JSON、shader コンパイル失敗等）にエラーメッセージが UI に表示される
+
+### Task L: GUI 統合 Phase G2 — SDF リアルタイムプレビュー
+
+- 前提
+  - Task K 完了後に着手
+  - ユーザーの `fn sdf(p: vec3<f32>) -> f32` をレイマーチングフラグメントシェーダに埋め込み、リアルタイム描画する
+  - GPU デバイスを **共有** に移行する検討を行う（bake 結果をプレビューに流す zero-copy の可能性）
+- 変更箇所
+  - `src/shader.wgsl` → 動的生成に切り替え（レイマーチテンプレート + ユーザー sdf 関数を合成）
+  - `sdf-baker/shader_compose.rs` の拡張、またはルート側に別テンプレートを用意
+  - `src/app.rs`: JSON 読み込み時に render_pipeline を再構築。カメラ操作 uniform 追加
+  - sdf-baker に `GpuContext::from_existing(device, queue)` コンストラクタ追加（デバイス共有時）
+- UI 構成
+  - メインパネル: レイマーチによるSDF サーフェス描画
+  - カメラ操作: マウスドラッグで orbit / ホイールで zoom / 中ボタンで pan
+  - AABB ワイヤーフレーム + グリッド分割の可視化（§6.4 プレビュー要件に対応）
+- Done when
+  - JSON を開くと SDF がリアルタイムプレビューされる
+  - カメラ操作でインタラクティブに視点変更できる
+  - shader コンパイルエラー時は前のパイプラインで描画継続（落ちない）
+  - AABB 範囲とブリック分割が可視化される
+
+## 9. 主要な意思決定ポイント
+
+### 9.0 決定済み
+
+- **WGSL/GLSL**: 両方対応。WGSL を一次入力、GLSL は naga 経由変換（R4 で実装済み）
+- **OpenVDB 連携の I/O 形式**: ブリック距離場（f32 LE）+ manifest.json（R2/R5 で実装済み）
+- **GPU デバイス（G1）**: 独立（eframe と sdf-baker で別デバイス）
+- **非同期モデル**: `std::thread` + `mpsc`（tokio 不要）
+- **ファイルダイアログ**: `rfd` クレート
+
+### 9.1 未確定
+
+- **GPU デバイス共有（G2）**: eframe の device を sdf-baker に渡すか、独立を維持するか。G2 着手時に判断
+- プレビューは「レイマーチ」か「メッシュ簡易生成（スライス/等値面）」か → G2 で「レイマーチ」を第一候補
 - ボリューム表現（3D texture / buffer / スパース）
-- OpenVDB連携のI/O形式（raw、vdb、他）
 - 解像度の上限、メモリ制約の扱い
 
 ## 10. インタビュー（詰めるための質問リスト）
