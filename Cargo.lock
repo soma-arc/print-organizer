@@ -2566,6 +2566,7 @@ dependencies = [
  "eframe",
  "env_logger",
  "log",
+ "naga",
  "rfd",
  "sdf-baker",
  "serde_json",

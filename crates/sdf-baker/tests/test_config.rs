@@ -2,8 +2,8 @@
 use std::path::PathBuf;
 
 use sdf_baker::cli::Cli;
-use sdf_baker::config::{load_config, resolve_config};
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
+use sdf_baker::config::{load_config, resolve_config};
 use sdf_baker::gpu::init_gpu;
 use sdf_baker::shader_compose::{compose_shader, load_shader};
 
@@ -107,11 +107,7 @@ fn test_resolve_gyroid_example() {
 fn test_config_out_from_config_file() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("test.json");
-    std::fs::write(
-        &config_path,
-        r#"{ "out": "my_output_dir" }"#,
-    )
-    .unwrap();
+    std::fs::write(&config_path, r#"{ "out": "my_output_dir" }"#).unwrap();
 
     // CLI has no --out, config has out
     let mut cli = cli_with_out("_unused");
@@ -144,8 +140,7 @@ fn test_sphere_example_gpu_bake() {
 
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
 
     let bricks = bake_all_bricks(&ctx, &pipeline, &layout, &resolved.bake_config).unwrap();
     // 64^3 grid, brick_size=64 → 1 brick
@@ -168,15 +163,18 @@ fn test_gyroid_example_gpu_bake() {
 
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
 
     let bricks = bake_all_bricks(&ctx, &pipeline, &layout, &resolved.bake_config).unwrap();
     // 128^3 grid, brick_size=64 → 8 bricks
     assert_eq!(bricks.len(), 8);
     // Gyroid fills entire space — all bricks should be active
     for brick in &bricks {
-        assert!(!brick.is_background, "Gyroid brick ({},{},{}) should be active", brick.bx, brick.by, brick.bz);
+        assert!(
+            !brick.is_background,
+            "Gyroid brick ({},{},{}) should be active",
+            brick.bx, brick.by, brick.bz
+        );
     }
 }
 
@@ -192,8 +190,7 @@ fn test_csg_example_gpu_bake() {
 
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
 
     let bricks = bake_all_bricks(&ctx, &pipeline, &layout, &resolved.bake_config).unwrap();
     // 128^3 grid → 8 bricks, but CSG is centered, so some corners might be background
@@ -214,8 +211,7 @@ fn test_linked_torus_example_gpu_bake() {
 
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
 
     let bricks = bake_all_bricks(&ctx, &pipeline, &layout, &resolved.bake_config).unwrap();
     assert!(bricks.len() <= 8);

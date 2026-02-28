@@ -1,6 +1,6 @@
 use sdf_baker::compute::{bake_all_bricks, bake_brick, create_compute_pipeline};
 use sdf_baker::gpu::init_gpu;
-use sdf_baker::shader_compose::{compose_wgsl, BUILTIN_SPHERE_SDF};
+use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, compose_wgsl};
 use sdf_baker::types::BakeConfig;
 
 fn setup() -> (
@@ -29,8 +29,7 @@ fn setup() -> (
 #[test]
 fn test_bake_single_brick_value_count() {
     let (ctx, pipeline, layout, config) = setup();
-    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0)
-        .expect("bake_brick");
+    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).expect("bake_brick");
     // 64^3 = 262144 values
     assert_eq!(values.len(), 64 * 64 * 64);
 }
@@ -38,8 +37,7 @@ fn test_bake_single_brick_value_count() {
 #[test]
 fn test_bake_single_brick_center_negative() {
     let (ctx, pipeline, layout, config) = setup();
-    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0)
-        .expect("bake_brick");
+    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).expect("bake_brick");
 
     // The sphere SDF: length(p - (32,32,32)) - 25.6
     // At center (32,32,32): distance = 0 - 25.6 = -25.6 (inside)
@@ -55,8 +53,7 @@ fn test_bake_single_brick_center_negative() {
 #[test]
 fn test_bake_single_brick_corner_positive() {
     let (ctx, pipeline, layout, config) = setup();
-    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0)
-        .expect("bake_brick");
+    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).expect("bake_brick");
 
     // At corner (0,0,0) + 0.5 offset = (0.5,0.5,0.5):
     // distance = length((0.5,0.5,0.5) - (32,32,32)) - 25.6 ≈ 54.56 - 25.6 = 28.96 (outside)
@@ -71,8 +68,7 @@ fn test_bake_single_brick_corner_positive() {
 #[test]
 fn test_bake_single_brick_no_nan() {
     let (ctx, pipeline, layout, config) = setup();
-    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0)
-        .expect("bake_brick");
+    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).expect("bake_brick");
 
     assert!(
         values.iter().all(|v| v.is_finite()),
@@ -84,8 +80,7 @@ fn test_bake_single_brick_no_nan() {
 fn test_bake_all_bricks_single() {
     let (ctx, pipeline, layout, config) = setup();
     // 64x64x64 with brick_size=64 → 1 brick
-    let results = bake_all_bricks(&ctx, &pipeline, &layout, &config)
-        .expect("bake_all_bricks");
+    let results = bake_all_bricks(&ctx, &pipeline, &layout, &config).expect("bake_all_bricks");
     assert_eq!(results.len(), 1);
     assert!(!results[0].is_background, "Sphere brick should be active");
 }
@@ -93,8 +88,7 @@ fn test_bake_all_bricks_single() {
 #[test]
 fn test_bake_sphere_surface_values() {
     let (ctx, pipeline, layout, config) = setup();
-    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0)
-        .expect("bake_brick");
+    let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).expect("bake_brick");
 
     // At a point on the sphere surface: (32 + 25.6, 32, 32) → voxel (57, 32, 32)
     // voxel center = (57.5, 32.5, 32.5), distance ≈ length((25.5, 0.5, 0.5)) - 25.6

@@ -13,6 +13,7 @@ log = "0.4"
 bytemuck = { version = "1", features = ["derive"] }
 eframe = { version = "0.33.3", features = ["wgpu"] }
 sdf-baker = { path = "crates/sdf-baker" }
+naga = { version = "27", features = ["glsl-in", "wgsl-in", "wgsl-out"] }
 rfd = "0.15"
 serde_json = "1"
 

@@ -2,7 +2,6 @@
 ///
 /// The config file is JSON with all fields optional. CLI arguments
 /// override config file values, which override defaults.
-
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -129,12 +128,8 @@ pub fn resolve_config(cli: &Cli, config_path: Option<&Path>) -> Result<ResolvedC
     };
 
     // Grid params: CLI > config > defaults
-    let aabb_min = cfg
-        .and_then(|c| c.grid.aabb_min)
-        .unwrap_or(cli.aabb_min);
-    let aabb_size = cfg
-        .and_then(|c| c.grid.aabb_size)
-        .unwrap_or(cli.aabb_size);
+    let aabb_min = cfg.and_then(|c| c.grid.aabb_min).unwrap_or(cli.aabb_min);
+    let aabb_size = cfg.and_then(|c| c.grid.aabb_size).unwrap_or(cli.aabb_size);
     let voxel_size = cfg
         .and_then(|c| c.grid.voxel_size)
         .unwrap_or(cli.voxel_size);
@@ -165,9 +160,7 @@ pub fn resolve_config(cli: &Cli, config_path: Option<&Path>) -> Result<ResolvedC
         None
     };
 
-    let skip_genmesh = cfg
-        .and_then(|c| c.genmesh.skip)
-        .unwrap_or(cli.skip_genmesh);
+    let skip_genmesh = cfg.and_then(|c| c.genmesh.skip).unwrap_or(cli.skip_genmesh);
     let write_vdb = cfg
         .and_then(|c| c.genmesh.write_vdb)
         .unwrap_or(cli.write_vdb);
@@ -362,11 +355,7 @@ mod tests {
     fn test_resolve_cli_shader_overrides_config() {
         let dir = tempfile::tempdir().unwrap();
         let config_path = dir.path().join("cfg.json");
-        std::fs::write(
-            &config_path,
-            r#"{ "shader": "config_shader.wgsl" }"#,
-        )
-        .unwrap();
+        std::fs::write(&config_path, r#"{ "shader": "config_shader.wgsl" }"#).unwrap();
 
         let mut cli = default_cli("out");
         cli.shader = Some(PathBuf::from("cli_shader.wgsl"));

@@ -1,12 +1,13 @@
-mod graphics;
 mod app;
+mod graphics;
+mod preview_compose;
 
 use app::MyApp;
 use eframe::egui;
 
 fn main() -> eframe::Result {
     env_logger::init();
-    
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([820.0, 680.0])
@@ -14,7 +15,7 @@ fn main() -> eframe::Result {
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };
-    
+
     eframe::run_native(
         "Print Organizer",
         options,

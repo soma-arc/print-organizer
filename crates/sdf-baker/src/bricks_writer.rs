@@ -46,8 +46,8 @@ pub fn write_manifest(dir: &Path, config: &BakeConfig) -> Result<PathBuf> {
     });
 
     let path = dir.join("manifest.json");
-    let json_str = serde_json::to_string_pretty(&manifest)
-        .context("Failed to serialize manifest")?;
+    let json_str =
+        serde_json::to_string_pretty(&manifest).context("Failed to serialize manifest")?;
     fs::write(&path, &json_str).context("Failed to write manifest.json")?;
 
     log::info!("Wrote {}", path.display());
@@ -230,10 +230,7 @@ mod tests {
     fn test_write_bricks_index_valid_json() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config();
-        let bricks = vec![
-            dummy_brick(0, 0, 0, false),
-            dummy_brick(1, 0, 0, false),
-        ];
+        let bricks = vec![dummy_brick(0, 0, 0, false), dummy_brick(1, 0, 0, false)];
         write_bricks(dir.path(), &config, &bricks).unwrap();
 
         let content = fs::read_to_string(dir.path().join("bricks.index.json")).unwrap();
@@ -268,7 +265,10 @@ mod tests {
         write_bricks(dir.path(), &config, &bricks).unwrap();
 
         let bin_size = fs::metadata(dir.path().join("bricks.bin")).unwrap().len();
-        assert_eq!(bin_size, 0, "Background-only should produce empty bricks.bin");
+        assert_eq!(
+            bin_size, 0,
+            "Background-only should produce empty bricks.bin"
+        );
 
         let content = fs::read_to_string(dir.path().join("bricks.index.json")).unwrap();
         let v: serde_json::Value = serde_json::from_str(&content).unwrap();

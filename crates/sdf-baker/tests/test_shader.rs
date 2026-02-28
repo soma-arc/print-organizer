@@ -3,7 +3,7 @@ use std::fs;
 
 use sdf_baker::compute::{bake_brick, create_compute_pipeline};
 use sdf_baker::gpu::init_gpu;
-use sdf_baker::shader_compose::{compose_shader, load_shader, ShaderLang};
+use sdf_baker::shader_compose::{ShaderLang, compose_shader, load_shader};
 use sdf_baker::types::BakeConfig;
 
 fn default_config() -> BakeConfig {
@@ -39,8 +39,7 @@ fn sdf(p: vec3<f32>) -> f32 {
     let composed = compose_shader(lang, &code).unwrap();
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
     let config = default_config();
     let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).unwrap();
 
@@ -48,10 +47,18 @@ fn sdf(p: vec3<f32>) -> f32 {
 
     // Center should be inside sphere
     let center = 32 + 64 * (32 + 64 * 32);
-    assert!(values[center] < 0.0, "Center should be negative, got {}", values[center]);
+    assert!(
+        values[center] < 0.0,
+        "Center should be negative, got {}",
+        values[center]
+    );
 
     // Corner should be outside
-    assert!(values[0] > 0.0, "Corner should be positive, got {}", values[0]);
+    assert!(
+        values[0] > 0.0,
+        "Corner should be positive, got {}",
+        values[0]
+    );
 }
 
 #[test]
@@ -70,8 +77,7 @@ fn test_external_glsl_shader_bake() {
     let composed = compose_shader(lang, &code).unwrap();
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
     let config = default_config();
     let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).unwrap();
 
@@ -79,10 +85,18 @@ fn test_external_glsl_shader_bake() {
 
     // Center should be inside sphere
     let center = 32 + 64 * (32 + 64 * 32);
-    assert!(values[center] < 0.0, "Center should be negative, got {}", values[center]);
+    assert!(
+        values[center] < 0.0,
+        "Center should be negative, got {}",
+        values[center]
+    );
 
     // Corner should be outside
-    assert!(values[0] > 0.0, "Corner should be positive, got {}", values[0]);
+    assert!(
+        values[0] > 0.0,
+        "Corner should be positive, got {}",
+        values[0]
+    );
 }
 
 #[test]
@@ -165,17 +179,24 @@ fn sdf(p: vec3<f32>) -> f32 {
     let composed = compose_shader(lang, &code).unwrap();
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
     let config = default_config();
     let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).unwrap();
 
     // Center should be inside box
     let center = 32 + 64 * (32 + 64 * 32);
-    assert!(values[center] < 0.0, "Box center should be negative, got {}", values[center]);
+    assert!(
+        values[center] < 0.0,
+        "Box center should be negative, got {}",
+        values[center]
+    );
 
     // Corner (0,0,0) should be outside
-    assert!(values[0] > 0.0, "Corner should be positive, got {}", values[0]);
+    assert!(
+        values[0] > 0.0,
+        "Corner should be positive, got {}",
+        values[0]
+    );
 }
 
 #[test]
@@ -199,12 +220,15 @@ fn test_external_glsl_custom_sdf() {
     let composed = compose_shader(lang, &code).unwrap();
     let ctx = init_gpu().unwrap();
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)
-            .unwrap();
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point).unwrap();
     let config = default_config();
     let values = bake_brick(&ctx, &pipeline, &layout, &config, 0, 0, 0).unwrap();
 
     // Center should be inside box
     let center = 32 + 64 * (32 + 64 * 32);
-    assert!(values[center] < 0.0, "Box center should be negative, got {}", values[center]);
+    assert!(
+        values[center] < 0.0,
+        "Box center should be negative, got {}",
+        values[center]
+    );
 }

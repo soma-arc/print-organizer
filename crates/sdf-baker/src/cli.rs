@@ -76,11 +76,23 @@ pub struct Cli {
 fn parse_vec3(s: &str) -> Result<[f32; 3], String> {
     let parts: Vec<&str> = s.split(',').collect();
     if parts.len() != 3 {
-        return Err(format!("expected 3 comma-separated floats, got {}", parts.len()));
+        return Err(format!(
+            "expected 3 comma-separated floats, got {}",
+            parts.len()
+        ));
     }
-    let x = parts[0].trim().parse::<f32>().map_err(|e| format!("x: {e}"))?;
-    let y = parts[1].trim().parse::<f32>().map_err(|e| format!("y: {e}"))?;
-    let z = parts[2].trim().parse::<f32>().map_err(|e| format!("z: {e}"))?;
+    let x = parts[0]
+        .trim()
+        .parse::<f32>()
+        .map_err(|e| format!("x: {e}"))?;
+    let y = parts[1]
+        .trim()
+        .parse::<f32>()
+        .map_err(|e| format!("y: {e}"))?;
+    let z = parts[2]
+        .trim()
+        .parse::<f32>()
+        .map_err(|e| format!("z: {e}"))?;
     Ok([x, y, z])
 }
 
@@ -158,22 +170,35 @@ mod tests {
     fn test_cli_all_args() {
         let cli = Cli::parse_from([
             "sdf-baker",
-            "--config", "cfg.json",
-            "--shader", "my.wgsl",
-            "--out", "out",
-            "--aabb-min", "1,2,3",
-            "--aabb-size", "10,20,30",
-            "--voxel-size", "0.5",
-            "--brick-size", "32",
-            "--half-width", "5",
-            "--iso", "0.1",
-            "--adaptivity", "0.5",
-            "--dtype", "f16",
-            "--genmesh-path", "genmesh.exe",
+            "--config",
+            "cfg.json",
+            "--shader",
+            "my.wgsl",
+            "--out",
+            "out",
+            "--aabb-min",
+            "1,2,3",
+            "--aabb-size",
+            "10,20,30",
+            "--voxel-size",
+            "0.5",
+            "--brick-size",
+            "32",
+            "--half-width",
+            "5",
+            "--iso",
+            "0.1",
+            "--adaptivity",
+            "0.5",
+            "--dtype",
+            "f16",
+            "--genmesh-path",
+            "genmesh.exe",
             "--skip-genmesh",
             "--write-vdb",
             "--force",
-            "--log-level", "debug",
+            "--log-level",
+            "debug",
         ]);
         assert_eq!(cli.shader.unwrap().to_str().unwrap(), "my.wgsl");
         assert_eq!(cli.aabb_min, [1.0, 2.0, 3.0]);

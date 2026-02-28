@@ -2,10 +2,9 @@
 ///
 /// Supports both WGSL and GLSL shader languages. GLSL shaders are converted
 /// to WGSL via naga before being passed to wgpu.
-
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 const COMPUTE_TEMPLATE_WGSL: &str = include_str!("../shaders/compute_template.wgsl");
 const COMPUTE_TEMPLATE_GLSL: &str = include_str!("../shaders/compute_template.glsl");
@@ -133,10 +132,12 @@ pub fn glsl_to_wgsl(glsl_source: &str) -> Result<String> {
     // Parse GLSL
     let mut frontend = Frontend::default();
     let options = Options::from(naga::ShaderStage::Compute);
-    let module = frontend.parse(&options, glsl_source).map_err(|parse_errors| {
-        let msgs: Vec<String> = parse_errors.errors.iter().map(|e| format!("{e}")).collect();
-        anyhow::anyhow!("GLSL parse errors:\n{}", msgs.join("\n"))
-    })?;
+    let module = frontend
+        .parse(&options, glsl_source)
+        .map_err(|parse_errors| {
+            let msgs: Vec<String> = parse_errors.errors.iter().map(|e| format!("{e}")).collect();
+            anyhow::anyhow!("GLSL parse errors:\n{}", msgs.join("\n"))
+        })?;
 
     // Validate
     let info = Validator::new(ValidationFlags::all(), Capabilities::all())

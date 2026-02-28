@@ -3,7 +3,7 @@ use std::fs;
 use sdf_baker::bricks_writer::{write_bricks, write_manifest};
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
 use sdf_baker::gpu::init_gpu;
-use sdf_baker::shader_compose::{compose_wgsl, BUILTIN_SPHERE_SDF};
+use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, compose_wgsl};
 use sdf_baker::types::BakeConfig;
 
 fn setup_and_bake() -> (BakeConfig, Vec<sdf_baker::types::BrickResult>) {

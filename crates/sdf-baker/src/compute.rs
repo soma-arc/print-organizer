@@ -211,9 +211,7 @@ pub fn bake_all_bricks(
 
                 // Sparse optimization: check if all values are at or beyond
                 // the background distance (brick contains no surface)
-                let is_background = values
-                    .iter()
-                    .all(|&v| v.abs() >= config.background_value);
+                let is_background = values.iter().all(|&v| v.abs() >= config.background_value);
 
                 if is_background {
                     log::debug!("  → background (skipped from output)");

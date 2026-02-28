@@ -4,9 +4,9 @@ use std::path::PathBuf;
 
 use sdf_baker::bricks_writer::{write_bricks, write_manifest};
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
-use sdf_baker::genmesh_runner::{run_genmesh, GenmeshRunConfig};
+use sdf_baker::genmesh_runner::{GenmeshRunConfig, run_genmesh};
 use sdf_baker::gpu::init_gpu;
-use sdf_baker::shader_compose::{compose_wgsl, BUILTIN_SPHERE_SDF};
+use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, compose_wgsl};
 use sdf_baker::types::BakeConfig;
 
 fn find_genmesh() -> Option<PathBuf> {
@@ -286,7 +286,10 @@ fn test_pipeline_reuse_across_bricks() {
     let bricks = bake_all_bricks(&ctx, &pipeline, &layout, &config).unwrap();
 
     // Verify brick (0,0,0) has the sphere center negative
-    let b000 = bricks.iter().find(|b| b.bx == 0 && b.by == 0 && b.bz == 0).unwrap();
+    let b000 = bricks
+        .iter()
+        .find(|b| b.bx == 0 && b.by == 0 && b.bz == 0)
+        .unwrap();
     let center_idx = 32 + 64 * (32 + 64 * 32);
     assert!(
         b000.values[center_idx] < 0.0,
@@ -295,7 +298,10 @@ fn test_pipeline_reuse_across_bricks() {
 
     // Brick (1,1,1) covers voxels [64..128] in all axes.
     // Sphere at (32,32,32) r=25.6 → max extent ~57.6 → brick (1,1,1) is all outside
-    let b111 = bricks.iter().find(|b| b.bx == 1 && b.by == 1 && b.bz == 1).unwrap();
+    let b111 = bricks
+        .iter()
+        .find(|b| b.bx == 1 && b.by == 1 && b.bz == 1)
+        .unwrap();
     assert!(
         b111.is_background,
         "Brick (1,1,1) should be background (far from sphere)"

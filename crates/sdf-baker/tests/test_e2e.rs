@@ -7,9 +7,9 @@ use std::path::PathBuf;
 
 use sdf_baker::bricks_writer::{write_bricks, write_manifest};
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
-use sdf_baker::genmesh_runner::{run_genmesh, GenmeshRunConfig};
+use sdf_baker::genmesh_runner::{GenmeshRunConfig, run_genmesh};
 use sdf_baker::gpu::init_gpu;
-use sdf_baker::shader_compose::{compose_wgsl, BUILTIN_SPHERE_SDF};
+use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, compose_wgsl};
 use sdf_baker::types::BakeConfig;
 
 fn find_genmesh() -> Option<PathBuf> {
@@ -62,7 +62,8 @@ fn run_full_pipeline(out_dir: &std::path::Path) -> sdf_baker::genmesh_runner::Ge
     write_manifest(out_dir, &config).expect("write manifest");
     write_bricks(out_dir, &config, &bricks).expect("write bricks");
 
-    let genmesh_path = find_genmesh().expect("genmesh not found — set GENMESH_PATH or build genmesh");
+    let genmesh_path =
+        find_genmesh().expect("genmesh not found — set GENMESH_PATH or build genmesh");
 
     let genmesh_config = GenmeshRunConfig {
         genmesh_path,
@@ -131,7 +132,13 @@ fn test_e2e_all_output_files_exist() {
     let dir = tempfile::tempdir().unwrap();
     run_full_pipeline(dir.path());
 
-    let expected_files = ["manifest.json", "bricks.bin", "bricks.index.json", "mesh.stl", "report.json"];
+    let expected_files = [
+        "manifest.json",
+        "bricks.bin",
+        "bricks.index.json",
+        "mesh.stl",
+        "report.json",
+    ];
     for f in &expected_files {
         assert!(
             dir.path().join(f).exists(),
