@@ -178,7 +178,6 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
 #[derive(Debug, Clone)]
 struct ConfigInfo {
     shader: String,
-    out: String,
     aabb_min: [f32; 3],
     aabb_size: [f32; 3],
     voxel_size: f32,
@@ -219,11 +218,8 @@ impl ConfigInfo {
             .map(|s| cfg_dir.join(s).display().to_string())
             .unwrap_or_else(|| "(built-in sphere)".into());
 
-        let out = cfg.out.clone().unwrap_or_else(|| "(not set)".into());
-
         ConfigInfo {
             shader,
-            out,
             aabb_min,
             aabb_size,
             voxel_size,

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <type_traits>
 
 namespace genmesh {
 
@@ -26,7 +27,19 @@ static bool require_field(const json& j, const std::string& key, ManifestResult&
         add_error(r, E1001, "Missing required field: " + key, key);
         return false;
     }
-    // type check via get_to would throw; we catch below
+    const auto& val = j[key];
+    bool type_ok = false;
+    if constexpr (std::is_integral_v<T>) {
+        type_ok = val.is_number_integer();
+    } else if constexpr (std::is_floating_point_v<T>) {
+        type_ok = val.is_number();
+    } else if constexpr (std::is_same_v<T, std::string>) {
+        type_ok = val.is_string();
+    }
+    if (!type_ok) {
+        add_error(r, E1001, "Field " + key + " has unexpected type: " + val.dump(), key);
+        return false;
+    }
     return true;
 }
 
