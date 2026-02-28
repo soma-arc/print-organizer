@@ -280,7 +280,9 @@
   - **L1**: レイマーチテンプレート作成（`src/shaders/raymarch_template.wgsl`, `src/shaders/raymarch_template.glsl`）
     - Uniform: `camera_pos`, `camera_target`, `camera_up`, `aabb_min`, `aabb_size`, `resolution`, `time`
     - `{{USER_SDF}}` プレースホルダ（compute テンプレートと同一方式）
-    - レイマーチループ + phong/normal ライティング
+    - レイマーチループ + Phong 簡易ライティング（後から差し替え可能な構造にする）
+    - レイマーチパラメータ: `MAX_STEPS=256`, `MIN_DIST=0.001`, `MAX_DIST` は AABB 対角線長から自動算出（固定で開始、後から UI 調整可能にする前提）
+    - 背景: ダークグレーのグラデーション
   - **L2**: シェーダ合成モジュール（`src/preview_compose.rs`）
     - `compose_preview(lang, user_sdf) -> Result<String>` (WGSL ソースを返す)
     - `load_shader` は `sdf_baker::shader_compose` から再利用
@@ -291,9 +293,17 @@
     - コンパイルエラー時は前のパイプラインを維持（フォールバック）
   - **L4**: カメラ操作
     - orbit（左ドラッグ）/ zoom（ホイール）/ pan（中ボタンドラッグ）
-    - AABB 中心をデフォルトのカメラターゲットに設定
-  - **L5**: AABB + ブリック分割の可視化（ワイヤーフレーム描画）
-  - **L6**: オフスクリーンテクスチャのリサイズ対応（パネルサイズに追従）
+    - 初期カメラ: `target = aabb_min + aabb_size * 0.5`, `distance = length(aabb_size) * 1.5`, `yaw=45°, pitch=30°`
+    - 感度は固定（合理的なデフォルト）で開始
+  - **L5**: AABB + ブリック分割の可視化
+    - 初期実装: レイマーチ内で SDF ベース box-frame 描画（別パス不要）
+    - 将来ラインレンダリングに移行可能な構造にする
+    - AABB / ブリック境界のそれぞれにトグル（チェックボックス）
+  - **L6**: オフスクリーンテクスチャのリサイズ対応
+    - available size が前フレームと異なる場合のみテクスチャ再作成
+    - 最小 64×64、最大 4096×4096 にクランプ
+  - **L7**: 静止時の repaint 抑制
+    - カメラ操作中・SDF 変更直後のみ連続再描画、静止時は `request_repaint()` を止める
 - 変更箇所
   - `src/shaders/raymarch_template.wgsl` (新規)
   - `src/shaders/raymarch_template.glsl` (新規)
@@ -310,7 +320,7 @@
   - shader コンパイルエラー時は前のパイプラインで描画継続（落ちない）
   - AABB 範囲とブリック分割が可視化される
   - パネルリサイズ時にプレビュー解像度が追従する
-  - JSON 未読み込み時はビルトイン sphere SDF をプレビュー表示する
+  - JSON 未読み込み時はプレビュー非表示（空のパネル）
 
 ## 9. 主要な意思決定ポイント
 
