@@ -285,7 +285,7 @@ GLSL 版 (R4 で追加):
 
 ---
 
-## Phase R4: 外部シェーダ読み込み (WGSL + GLSL)
+## Phase R4: 外部シェーダ読み込み (WGSL + GLSL) ✅ (7345643)
 
 ### R4.1 WGSL ファイル読み込み (shader_compose.rs)
 - `load_shader(path) -> Result<(ShaderLang, String)>`
@@ -334,7 +334,7 @@ GLSL 版 (R4 で追加):
 
 ---
 
-## Phase R5: マルチブリック対応 + 最適化
+## Phase R5: マルチブリック対応 + 最適化 ✅ (290d3cb)
 
 ### R5.1 dims > 64 のグリッド分割
 - `BakeConfig` から自動計算:
