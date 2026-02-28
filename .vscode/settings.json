@@ -5,6 +5,14 @@
             "matchCommandLine": true
         },
         "New-Item": true,
-        "Out-Null": true
+        "Out-Null": true,
+        "where": true,
+        "vcpkg": true,
+        "cmake": true,
+        "Push-Location": true,
+        ".\\build\\Debug\\genmesh.exe": true,
+        "Test-Path": true,
+        "ctest": true,
+        "Pop-Location": true
     }
 }

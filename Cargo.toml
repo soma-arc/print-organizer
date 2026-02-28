@@ -1,3 +1,6 @@
+[workspace]
+members = ["crates/sdf-baker"]
+
 [package]
 name = "print-organizer"
 version = "0.1.0"
