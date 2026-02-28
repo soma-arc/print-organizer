@@ -102,7 +102,7 @@ pub fn bake_brick(
     slice.map_async(wgpu::MapMode::Read, move |result| {
         sender.send(result).unwrap();
     });
-    let _ = ctx.device.poll(wgpu::PollType::Wait);
+    let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
     receiver
         .recv()
         .context("Channel closed")?

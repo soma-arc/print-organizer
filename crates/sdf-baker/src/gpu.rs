@@ -39,6 +39,7 @@ pub fn init_gpu() -> Result<GpuContext> {
         required_limits,
         memory_hints: wgpu::MemoryHints::Performance,
         trace: wgpu::Trace::Off,
+        experimental_features: Default::default(),
     }))
     .context("Failed to create wgpu device")?;
 

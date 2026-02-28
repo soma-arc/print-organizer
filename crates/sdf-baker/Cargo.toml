@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-wgpu = "25"
+wgpu = "27"
 pollster = "0.4"
 bytemuck = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
@@ -14,7 +14,7 @@ sha2 = "0.10"
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.10"
-naga = { version = "25", features = ["glsl-in", "wgsl-in", "wgsl-out"] }
+naga = { version = "27", features = ["glsl-in", "wgsl-in", "wgsl-out"] }
 
 [dev-dependencies]
 tempfile = "3"
