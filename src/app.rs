@@ -469,6 +469,18 @@ impl eframe::App for MyApp {
             }
         }
 
+        // Drag & drop JSON files
+        let dropped: Vec<PathBuf> = ctx.input(|i| {
+            i.raw.dropped_files
+                .iter()
+                .filter_map(|f| f.path.clone())
+                .filter(|p| p.extension().is_some_and(|e| e == "json"))
+                .collect()
+        });
+        if let Some(path) = dropped.into_iter().next() {
+            self.load_config_file(path);
+        }
+
         // ---------------------------------------------------------------
         // Side panel — config & bake controls
         // ---------------------------------------------------------------
