@@ -312,6 +312,10 @@ pub struct MyApp {
     shader_error: Option<String>,
     /// true while camera/input is being manipulated (continuous repaint)
     needs_repaint: bool,
+    /// Show AABB wireframe overlay
+    show_aabb: bool,
+    /// Show brick boundary wireframe overlay
+    show_bricks: bool,
 
     // --- sdf-baker GUI state ---
     config_path: Option<PathBuf>,
@@ -362,6 +366,9 @@ impl MyApp {
             render_width,
             render_height,
             0.0,
+            0.0,
+            false,
+            false,
         );
 
         let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -409,6 +416,8 @@ impl MyApp {
             preview_active: false,
             shader_error: None,
             needs_repaint: false,
+            show_aabb: true,
+            show_bricks: false,
 
             config_path: None,
             config_info: None,
@@ -430,7 +439,8 @@ struct Globals {
     camera_up: vec3<f32>, _pad2: f32,
     aabb_min: vec3<f32>, _pad3: f32,
     aabb_size: vec3<f32>, _pad4: f32,
-    resolution: vec2<f32>, time: f32, _pad5: f32,
+    resolution: vec2<f32>, time: f32, brick_size: f32,
+    show_aabb: u32, show_bricks: u32, _pad6: vec2<u32>,
 };
 @group(0) @binding(0) var<uniform> globals: Globals;
 struct VertexOutput { @builtin(position) clip_position: vec4<f32>, @location(0) uv: vec2<f32> };
@@ -509,11 +519,14 @@ struct VertexOutput { @builtin(position) clip_position: vec4<f32>, @location(0) 
 
         let elapsed_time = self.start_time.elapsed().as_secs_f32();
 
-        let (aabb_min, aabb_size) = self
+        let (aabb_min, aabb_size, brick_size_world) = self
             .config_info
             .as_ref()
-            .map(|info| (info.aabb_min, info.aabb_size))
-            .unwrap_or(([0.0; 3], [0.0; 3]));
+            .map(|info| {
+                let bs = info.voxel_size * info.brick_size as f32;
+                (info.aabb_min, info.aabb_size, bs)
+            })
+            .unwrap_or(([0.0; 3], [0.0; 3], 0.0));
 
         let globals = GlobalsUniform::new(
             self.camera.position(),
@@ -524,6 +537,9 @@ struct VertexOutput { @builtin(position) clip_position: vec4<f32>, @location(0) 
             self.render_width,
             self.render_height,
             elapsed_time,
+            brick_size_world,
+            self.show_aabb,
+            self.show_bricks,
         );
         queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
 
@@ -763,6 +779,19 @@ impl eframe::App for MyApp {
                     ui.label("出力先ディレクトリ:");
                     ui.text_edit_singleline(&mut self.out_dir_override);
                     ui.checkbox(&mut self.force_overwrite, "上書き許可 (force)");
+
+                    // --- Preview overlays ---
+                    ui.separator();
+                    ui.label("--- Preview ---");
+                    if ui.checkbox(&mut self.show_aabb, "AABB 表示").changed() {
+                        self.needs_repaint = true;
+                    }
+                    if ui
+                        .checkbox(&mut self.show_bricks, "ブリック境界 表示")
+                        .changed()
+                    {
+                        self.needs_repaint = true;
+                    }
 
                     // --- Bake button ---
                     ui.separator();

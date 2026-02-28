@@ -2,15 +2,18 @@
 ///
 /// Layout (std140-aligned):
 /// ```text
-///  0: camera_pos    (vec3 + pad)   16 bytes
-/// 16: camera_target (vec3 + pad)   16 bytes
-/// 32: camera_up     (vec3 + pad)   16 bytes
-/// 48: aabb_min      (vec3 + pad)   16 bytes
-/// 64: aabb_size     (vec3 + pad)   16 bytes
-/// 80: resolution    (vec2)          8 bytes
-/// 88: time          (f32)           4 bytes
-/// 92: _pad5         (f32)           4 bytes
-/// Total: 96 bytes
+///   0: camera_pos    (vec3 + pad)   16 bytes
+///  16: camera_target (vec3 + pad)   16 bytes
+///  32: camera_up     (vec3 + pad)   16 bytes
+///  48: aabb_min      (vec3 + pad)   16 bytes
+///  64: aabb_size     (vec3 + pad)   16 bytes
+///  80: resolution    (vec2)          8 bytes
+///  88: time          (f32)           4 bytes
+///  92: brick_size    (f32)           4 bytes
+///  96: show_aabb     (u32)           4 bytes
+/// 100: show_bricks   (u32)           4 bytes
+/// 104: _pad6         (u32 x2)        8 bytes
+/// Total: 112 bytes
 /// ```
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -27,7 +30,10 @@ pub struct GlobalsUniform {
     pub _pad4: f32,
     pub resolution: [f32; 2],
     pub time: f32,
-    pub _pad5: f32,
+    pub brick_size: f32,
+    pub show_aabb: u32,
+    pub show_bricks: u32,
+    pub _pad6: [u32; 2],
 }
 
 impl GlobalsUniform {
@@ -40,6 +46,9 @@ impl GlobalsUniform {
         width: u32,
         height: u32,
         time: f32,
+        brick_size: f32,
+        show_aabb: bool,
+        show_bricks: bool,
     ) -> Self {
         Self {
             camera_pos,
@@ -54,7 +63,10 @@ impl GlobalsUniform {
             _pad4: 0.0,
             resolution: [width as f32, height as f32],
             time,
-            _pad5: 0.0,
+            brick_size,
+            show_aabb: show_aabb as u32,
+            show_bricks: show_bricks as u32,
+            _pad6: [0; 2],
         }
     }
 }

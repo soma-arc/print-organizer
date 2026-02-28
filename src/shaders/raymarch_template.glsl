@@ -18,7 +18,10 @@ layout(std140, set = 0, binding = 0) uniform Globals {
     float _pad4;
     vec2 resolution;
     float time;
-    float _pad5;
+    float brick_size;
+    uint show_aabb;
+    uint show_bricks;
+    uvec2 _pad6;
 } globals;
 
 layout(location = 0) in vec2 uv;
