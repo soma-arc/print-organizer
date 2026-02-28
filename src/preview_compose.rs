@@ -1,17 +1,17 @@
 /// Preview shader composition: merge user SDF function with the raymarch template.
 ///
 /// Reuses `sdf_baker::shader_compose::{load_shader, glsl_to_wgsl, validate_wgsl}`.
-use anyhow::Result;
+use anyhow::{Result, bail};
 use sdf_baker::shader_compose::{ShaderLang, validate_wgsl};
 
 const RAYMARCH_TEMPLATE_WGSL: &str = include_str!("shaders/raymarch_template.wgsl");
-const RAYMARCH_TEMPLATE_GLSL: &str = include_str!("shaders/raymarch_template.glsl");
 
 const PLACEHOLDER: &str = "{{USER_SDF}}";
 
 /// Compose a preview (raymarch) shader from user SDF code.
 ///
 /// Returns a complete WGSL source ready for `device.create_shader_module()`.
+/// Both WGSL and GLSL user SDFs produce WGSL output using the WGSL template.
 pub fn compose_preview(lang: ShaderLang, user_sdf_code: &str) -> Result<String> {
     match lang {
         ShaderLang::Wgsl => {
@@ -20,36 +20,105 @@ pub fn compose_preview(lang: ShaderLang, user_sdf_code: &str) -> Result<String> 
             Ok(wgsl)
         }
         ShaderLang::Glsl => {
-            let glsl = RAYMARCH_TEMPLATE_GLSL.replace(PLACEHOLDER, user_sdf_code);
-            let wgsl = glsl_fragment_to_wgsl(&glsl)?;
+            // Convert GLSL SDF function(s) to WGSL, then insert into WGSL template.
+            // This avoids the problem of the GLSL template lacking a vertex shader.
+            let wgsl_sdf = glsl_sdf_to_wgsl(user_sdf_code)?;
+            let wgsl = RAYMARCH_TEMPLATE_WGSL.replace(PLACEHOLDER, &wgsl_sdf);
+            validate_wgsl(&wgsl)?;
             Ok(wgsl)
         }
     }
 }
 
-/// Convert a complete GLSL fragment shader to WGSL using naga.
-fn glsl_fragment_to_wgsl(glsl_source: &str) -> Result<String> {
-    use naga::back::wgsl;
-    use naga::front::glsl::{Frontend, Options};
-    use naga::valid::{Capabilities, ValidationFlags, Validator};
+/// Convert GLSL SDF function(s) to WGSL by wrapping in a minimal compute shader,
+/// converting via naga, and extracting the user-defined functions.
+fn glsl_sdf_to_wgsl(glsl_sdf: &str) -> Result<String> {
+    // Wrap the user SDF in a minimal GLSL compute shader so naga can parse it.
+    let wrapper = format!(
+        "#version 450\n\
+         layout(local_size_x = 1) in;\n\
+         layout(std430, set = 0, binding = 0) buffer O {{ float d[]; }} o;\n\
+         {glsl_sdf}\n\
+         void main() {{ o.d[0] = sdf(vec3(0.0)); }}\n"
+    );
 
-    let mut frontend = Frontend::default();
-    let options = Options::from(naga::ShaderStage::Fragment);
-    let module = frontend
-        .parse(&options, glsl_source)
-        .map_err(|parse_errors| {
-            let msgs: Vec<String> = parse_errors.errors.iter().map(|e| format!("{e}")).collect();
-            anyhow::anyhow!("GLSL parse errors:\n{}", msgs.join("\n"))
-        })?;
+    let full_wgsl = sdf_baker::shader_compose::glsl_to_wgsl(&wrapper)?;
 
-    let info = Validator::new(ValidationFlags::all(), Capabilities::all())
-        .validate(&module)
-        .map_err(|e| anyhow::anyhow!("GLSL shader validation error: {e}"))?;
+    // The naga output has:
+    //   struct O { d: array<f32>, }
+    //   @group(0) @binding(0) var<storage, read_write> o: O;
+    //   fn helper_1(...) { ... }   // if any
+    //   fn sdf(...) { ... }
+    //   @compute @workgroup_size(1) fn main() { ... }
+    //
+    // We extract all `fn` definitions except `fn main`.
+    extract_user_functions(&full_wgsl)
+}
 
-    let wgsl_source = wgsl::write_string(&module, &info, wgsl::WriterFlags::empty())
-        .map_err(|e| anyhow::anyhow!("GLSL→WGSL conversion failed: {e}"))?;
+/// Extract all function definitions from WGSL source, excluding `fn main(`.
+fn extract_user_functions(wgsl: &str) -> Result<String> {
+    let mut result = String::new();
+    let mut search_from = 0;
 
-    Ok(wgsl_source)
+    while search_from < wgsl.len() {
+        let Some(fn_offset) = wgsl[search_from..].find("fn ") else {
+            break;
+        };
+        let fn_pos = search_from + fn_offset;
+        let after_fn = &wgsl[fn_pos + 3..];
+
+        // Skip the wrapper's entry point and its body function.
+        // naga renames `void main()` to `fn main_1()` and creates
+        // `@compute fn main()` wrapper, so skip both.
+        if after_fn.starts_with("main(")
+            || after_fn.starts_with("main ")
+            || after_fn.starts_with("main_1(")
+            || after_fn.starts_with("main_1 ")
+        {
+            // Jump past this function
+            if let Some(end) = find_matching_brace(wgsl, fn_pos) {
+                search_from = end + 1;
+            } else {
+                break;
+            }
+            continue;
+        }
+
+        // Extract this user function
+        if let Some(end) = find_matching_brace(wgsl, fn_pos) {
+            result.push_str(&wgsl[fn_pos..=end]);
+            result.push('\n');
+            search_from = end + 1;
+        } else {
+            break;
+        }
+    }
+
+    if result.is_empty() {
+        bail!("No user functions found in GLSL→WGSL conversion output");
+    }
+
+    Ok(result)
+}
+
+/// Find the closing `}` that matches the first `{` at or after `start`.
+fn find_matching_brace(s: &str, start: usize) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let open = s[start..].find('{')? + start;
+    let mut depth = 0;
+    for i in open..bytes.len() {
+        match bytes[i] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -65,6 +134,18 @@ fn sdf(p: vec3<f32>) -> f32 {
     const SPHERE_GLSL: &str = r#"
 float sdf(vec3 p) {
     return length(p - vec3(32.0, 32.0, 32.0)) - 25.6;
+}
+"#;
+
+    const CSG_GLSL: &str = r#"
+float sdf(vec3 p) {
+    vec3 center = vec3(64.0, 64.0, 64.0);
+    vec3 q = p - center;
+    float sphere = length(q) - 40.0;
+    vec3 half_ext = vec3(25.0, 25.0, 25.0);
+    vec3 d = abs(q) - half_ext;
+    float box_d = length(max(d, vec3(0.0))) + min(max(d.x, max(d.y, d.z)), 0.0);
+    return max(sphere, -box_d);
 }
 "#;
 
@@ -88,11 +169,33 @@ float sdf(vec3 p) {
             result.is_ok(),
             "GLSL preview composition failed: {result:?}"
         );
+        let wgsl = result.unwrap();
+        // Must contain both entry points from the WGSL template
+        assert!(wgsl.contains("fn vs_main("), "Missing vs_main");
+        assert!(wgsl.contains("fn fs_main("), "Missing fs_main");
+        // Must not contain the compute wrapper's main
+        assert!(!wgsl.contains("@compute"), "Should not contain @compute");
+    }
+
+    #[test]
+    fn test_compose_glsl_csg_preview() {
+        let result = compose_preview(ShaderLang::Glsl, CSG_GLSL);
+        assert!(
+            result.is_ok(),
+            "GLSL CSG preview composition failed: {result:?}"
+        );
     }
 
     #[test]
     fn test_placeholder_replaced() {
         let wgsl = compose_preview(ShaderLang::Wgsl, SPHERE_WGSL).unwrap();
         assert!(!wgsl.contains(PLACEHOLDER));
+    }
+
+    #[test]
+    fn test_glsl_sdf_to_wgsl_extracts_function() {
+        let wgsl_sdf = glsl_sdf_to_wgsl(SPHERE_GLSL).unwrap();
+        assert!(wgsl_sdf.contains("fn sdf("), "Extracted WGSL must contain sdf function");
+        assert!(!wgsl_sdf.contains("fn main("), "Must not contain main");
     }
 }

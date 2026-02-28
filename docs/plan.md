@@ -271,13 +271,13 @@
 - 前提
   - Task K 完了後に着手
   - ユーザーの SDF 関数をレイマーチングフラグメントシェーダに埋め込み、リアルタイム描画する
-  - **WGSL / GLSL 両対応**: sdf-baker の compute テンプレートと同じパターンで、レイマーチ用テンプレートも WGSL・GLSL 両方を用意する
+  - **WGSL / GLSL 両対応**: テンプレートは WGSL のみ。GLSL ユーザーSDF はダミー compute シェーダに包み naga で WGSL 変換、SDF 関数を抽出して WGSL テンプレートに挿入する
     - WGSL ユーザーSDF → `raymarch_template.wgsl` に挿入 → そのまま使用
-    - GLSL ユーザーSDF → `raymarch_template.glsl` に挿入 → naga で全体を WGSL 変換
+    - GLSL ユーザーSDF → `glsl_sdf_to_wgsl()` で SDF 関数のみ WGSL 変換 → `raymarch_template.wgsl` に挿入
     - 既存の `sdf_baker::shader_compose::{load_shader, glsl_to_wgsl, validate_wgsl}` を再利用
   - GPU デバイスは **独立を維持**（eframe と sdf-baker は共に wgpu 27 だが、eframe 内部の device は egui-wgpu が管理しており直接共有は非自明。将来的にデバイス共有を検討可能）
 - サブタスク
-  - **L1**: レイマーチテンプレート作成（`src/shaders/raymarch_template.wgsl`, `src/shaders/raymarch_template.glsl`）
+  - **L1**: レイマーチテンプレート作成（`src/shaders/raymarch_template.wgsl`）
     - Uniform: `camera_pos`, `camera_target`, `camera_up`, `aabb_min`, `aabb_size`, `resolution`, `time`
     - `{{USER_SDF}}` プレースホルダ（compute テンプレートと同一方式）
     - レイマーチループ + Phong 簡易ライティング（後から差し替え可能な構造にする）
@@ -306,7 +306,6 @@
     - カメラ操作中・SDF 変更直後のみ連続再描画、静止時は `request_repaint()` を止める
 - 変更箇所
   - `src/shaders/raymarch_template.wgsl` (新規)
-  - `src/shaders/raymarch_template.glsl` (新規)
   - `src/preview_compose.rs` (新規)
   - `src/graphics/uniform.rs`: GlobalsUniform 拡張
   - `src/graphics/pipeline.rs`: create_render_pipeline にバインドグループ変更
