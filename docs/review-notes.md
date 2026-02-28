@@ -52,8 +52,9 @@
 
 - **ファイル**: `src/preview_compose.rs:62-95`
 - **問題**: `extract_user_functions()` が naga出力の `fn main_1(` パターンに依存
+- **なぜ必要か**: GLSLには頂点+フラグメントのマルチステージテンプレートがなく、nagaは完全なシェーダステージを要求するため、ダミー compute シェーダに包んで変換し、ユーザー関数だけ抽出する必要がある
 - **リスク**: nagaバージョンアップで出力形式が変わる可能性
-- **対策**: nagaバージョン固定、または出力形式変更時のテスト失敗で検知
+- **✅ 緩和策**: コードに詳細な理由とリスクを文書化済。nagaバージョンは wgpu 27 経由で固定。`test_compose_glsl_preview` / `test_glsl_sdf_to_wgsl_extracts_function` が形式変更時に検知
 
 ### 3.4 レイマーチパラメータ
 
@@ -86,7 +87,7 @@
 |--------|------|
 | 高 | `ConfigInfo::out` のdead_code警告を解消 | ✅ |
 | 高 | genmesh `require_field<T>` 型チェック改善 | ✅ |
-| 中 | `extract_user_functions()` のnagaバージョン依存を文書化 |
+| 中 | `extract_user_functions()` のnagaバージョン依存を文書化 | ✅ |
 | 中 | genmesh実行パスの明示的解決 |
 | 低 | レイマーチパラメータのUniform化 |
 | 低 | half_to_float のC++20モダン化 |
