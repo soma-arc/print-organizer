@@ -96,7 +96,7 @@ genmesh --debug-generate sphere --out out/ --write-vdb
 
 - `mesh.stl` — 球体の三角形メッシュ
 - `volume.vdb` — OpenVDB グリッド（`--write-vdb` 指定時）
-- `report.json` — 実行統計 *(Phase 6 で実装予定)*
+- `report.json` — 実行統計（タイミング・頂点数・エラー等）
 
 生成された `mesh.stl` は MeshLab 等で確認可能。
 
