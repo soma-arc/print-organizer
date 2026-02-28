@@ -2768,6 +2768,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "naga 25.0.1",
  "pollster",
  "serde",
  "serde_json",
