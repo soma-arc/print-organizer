@@ -1,0 +1,77 @@
+{
+  "axis_order": "x-fastest",
+  "brick_size": 64,
+  "bricks": [
+    {
+      "bx": 0,
+      "by": 0,
+      "bz": 0,
+      "encoding": "raw",
+      "offset_bytes": 0,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 1,
+      "by": 0,
+      "bz": 0,
+      "encoding": "raw",
+      "offset_bytes": 1048576,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 0,
+      "by": 1,
+      "bz": 0,
+      "encoding": "raw",
+      "offset_bytes": 2097152,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 1,
+      "by": 1,
+      "bz": 0,
+      "encoding": "raw",
+      "offset_bytes": 3145728,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 0,
+      "by": 0,
+      "bz": 1,
+      "encoding": "raw",
+      "offset_bytes": 4194304,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 1,
+      "by": 0,
+      "bz": 1,
+      "encoding": "raw",
+      "offset_bytes": 5242880,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 0,
+      "by": 1,
+      "bz": 1,
+      "encoding": "raw",
+      "offset_bytes": 6291456,
+      "payload_bytes": 1048576
+    },
+    {
+      "bx": 1,
+      "by": 1,
+      "bz": 1,
+      "encoding": "raw",
+      "offset_bytes": 7340032,
+      "payload_bytes": 1048576
+    }
+  ],
+  "dims": [
+    128,
+    128,
+    128
+  ],
+  "dtype": "f32",
+  "version": 1
+}

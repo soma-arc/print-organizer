@@ -428,12 +428,12 @@ impl MyApp {
         match sdf_baker::config::load_config(&path) {
             Ok(cfg) => {
                 let info = ConfigInfo::from_config(&cfg, &cfg_dir);
-                // Pre-fill output dir override from config if available
-                if self.out_dir_override.is_empty() {
-                    if let Some(ref out) = cfg.out {
-                        self.out_dir_override = cfg_dir.join(out).display().to_string();
-                    }
-                }
+                // Always update output dir from the new config
+                self.out_dir_override = cfg
+                    .out
+                    .as_ref()
+                    .map(|out| cfg_dir.join(out).display().to_string())
+                    .unwrap_or_default();
                 self.config_info = Some(info);
                 self.config_error = None;
             }
