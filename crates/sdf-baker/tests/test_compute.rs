@@ -12,7 +12,7 @@ fn setup() -> (
     let ctx = init_gpu().expect("GPU init");
     let shader_src = compose_wgsl(BUILTIN_SPHERE_SDF);
     let (pipeline, layout) =
-        create_compute_pipeline(&ctx.device, &shader_src).expect("pipeline creation");
+        create_compute_pipeline(&ctx.device, &shader_src, "cs_main").expect("pipeline creation");
     let config = BakeConfig::new(
         [0.0, 0.0, 0.0],
         [64.0, 64.0, 64.0],

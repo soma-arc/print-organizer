@@ -14,7 +14,7 @@ sha2 = "0.10"
 anyhow = "1.0"
 log = "0.4"
 env_logger = "0.10"
+naga = { version = "25", features = ["glsl-in", "wgsl-in", "wgsl-out"] }
 
 [dev-dependencies]
-naga = { version = "25", features = ["wgsl-in"] }
 tempfile = "3"

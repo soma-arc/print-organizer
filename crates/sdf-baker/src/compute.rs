@@ -116,10 +116,13 @@ pub fn bake_brick(
     Ok(values)
 }
 
-/// Create the compute pipeline and bind group layout from a shader module.
+/// Create the compute pipeline and bind group layout from a WGSL shader module.
+///
+/// `entry_point` is typically `"cs_main"` for native WGSL or `"main"` for GLSL→WGSL.
 pub fn create_compute_pipeline(
     device: &wgpu::Device,
     shader_source: &str,
+    entry_point: &str,
 ) -> Result<(wgpu::ComputePipeline, wgpu::BindGroupLayout)> {
     let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sdf compute shader"),
@@ -164,7 +167,7 @@ pub fn create_compute_pipeline(
         label: Some("sdf compute pipeline"),
         layout: Some(&pipeline_layout),
         module: &shader_module,
-        entry_point: Some("cs_main"),
+        entry_point: Some(entry_point),
         compilation_options: Default::default(),
         cache: None,
     });

@@ -7,7 +7,7 @@ use sdf_baker::cli::Cli;
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
 use sdf_baker::genmesh_runner::{run_genmesh, GenmeshRunConfig};
 use sdf_baker::gpu::init_gpu;
-use sdf_baker::shader_compose::{compose_wgsl, BUILTIN_SPHERE_SDF};
+use sdf_baker::shader_compose::{compose_shader, load_shader, ShaderLang, BUILTIN_SPHERE_SDF};
 use sdf_baker::types::BakeConfig;
 
 fn main() {
@@ -51,18 +51,19 @@ fn run_pipeline(cli: &Cli) -> Result<()> {
     log::info!("GPU init: {:.1}ms", gpu_start.elapsed().as_secs_f64() * 1000.0);
 
     // 3. Load shader
-    let user_sdf = if let Some(ref shader_path) = cli.shader {
+    let (lang, user_sdf) = if let Some(ref shader_path) = cli.shader {
         log::info!("Loading shader: {}", shader_path.display());
-        std::fs::read_to_string(shader_path)
-            .map_err(|e| anyhow::anyhow!("Failed to read shader file: {e}"))?
+        load_shader(shader_path)?
     } else {
         log::info!("Using built-in sphere SDF");
-        BUILTIN_SPHERE_SDF.to_string()
+        (ShaderLang::Wgsl, BUILTIN_SPHERE_SDF.to_string())
     };
 
     // 4. Compose + compile shader
-    let shader_src = compose_wgsl(&user_sdf);
-    let (pipeline, layout) = create_compute_pipeline(&ctx.device, &shader_src)?;
+    log::info!("Composing shader ({:?})...", lang);
+    let composed = compose_shader(lang, &user_sdf)?;
+    let (pipeline, layout) =
+        create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)?;
 
     // 5. Build config
     let config = BakeConfig::new(
