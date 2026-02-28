@@ -316,6 +316,8 @@ pub struct MyApp {
     show_aabb: bool,
     /// Show brick boundary wireframe overlay
     show_bricks: bool,
+    /// Clip SDF rendering to AABB bounds
+    clip_aabb: bool,
 
     // --- sdf-baker GUI state ---
     config_path: Option<PathBuf>,
@@ -369,6 +371,7 @@ impl MyApp {
             0.0,
             false,
             false,
+            true,
         );
 
         let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -418,6 +421,7 @@ impl MyApp {
             needs_repaint: false,
             show_aabb: true,
             show_bricks: false,
+            clip_aabb: true,
 
             config_path: None,
             config_info: None,
@@ -440,7 +444,7 @@ struct Globals {
     aabb_min: vec3<f32>, _pad3: f32,
     aabb_size: vec3<f32>, _pad4: f32,
     resolution: vec2<f32>, time: f32, brick_size: f32,
-    show_aabb: u32, show_bricks: u32, _pad6: vec2<u32>,
+    show_aabb: u32, show_bricks: u32, clip_aabb: u32, _pad6: u32,
 };
 @group(0) @binding(0) var<uniform> globals: Globals;
 struct VertexOutput { @builtin(position) clip_position: vec4<f32>, @location(0) uv: vec2<f32> };
@@ -540,6 +544,7 @@ struct VertexOutput { @builtin(position) clip_position: vec4<f32>, @location(0) 
             brick_size_world,
             self.show_aabb,
             self.show_bricks,
+            self.clip_aabb,
         );
         queue.write_buffer(&self.globals_buffer, 0, bytemuck::bytes_of(&globals));
 
@@ -788,6 +793,12 @@ impl eframe::App for MyApp {
                     }
                     if ui
                         .checkbox(&mut self.show_bricks, "ブリック境界 表示")
+                        .changed()
+                    {
+                        self.needs_repaint = true;
+                    }
+                    if ui
+                        .checkbox(&mut self.clip_aabb, "AABB クリップ")
                         .changed()
                     {
                         self.needs_repaint = true;

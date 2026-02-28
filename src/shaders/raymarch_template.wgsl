@@ -18,7 +18,8 @@ struct Globals {
     brick_size:    f32,
     show_aabb:     u32,
     show_bricks:   u32,
-    _pad6:         vec2<u32>,
+    clip_aabb:     u32,
+    _pad6:         u32,
 };
 
 @group(0) @binding(0)
@@ -57,12 +58,32 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VertexOutput {
 const MAX_STEPS: i32 = 256;
 const MIN_DIST: f32 = 0.001;
 
+/// Signed distance to the interior of an axis-aligned bounding box.
+/// Negative inside, positive outside.
+fn aabb_sdf(p: vec3<f32>, box_min: vec3<f32>, box_max: vec3<f32>) -> f32 {
+    let center = (box_min + box_max) * 0.5;
+    let half = (box_max - box_min) * 0.5;
+    let q = abs(p - center) - half;
+    return length(max(q, vec3<f32>(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+/// Scene SDF: user sdf, optionally clipped to AABB.
+fn scene_sdf(p: vec3<f32>) -> f32 {
+    let d = sdf(p);
+    if (globals.clip_aabb != 0u) {
+        let aabb_max = globals.aabb_min + globals.aabb_size;
+        let d_box = aabb_sdf(p, globals.aabb_min, aabb_max);
+        return max(d, d_box);
+    }
+    return d;
+}
+
 fn calc_normal(p: vec3<f32>, eps: f32) -> vec3<f32> {
     let e = vec2<f32>(eps, 0.0);
     let n = vec3<f32>(
-        sdf(p + e.xyy) - sdf(p - e.xyy),
-        sdf(p + e.yxy) - sdf(p - e.yxy),
-        sdf(p + e.yyx) - sdf(p - e.yyx),
+        scene_sdf(p + e.xyy) - scene_sdf(p - e.xyy),
+        scene_sdf(p + e.yxy) - scene_sdf(p - e.yxy),
+        scene_sdf(p + e.yyx) - scene_sdf(p - e.yyx),
     );
     return normalize(n);
 }
@@ -135,7 +156,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var hit = false;
     for (var i = 0; i < MAX_STEPS; i = i + 1) {
         let p = globals.camera_pos + ray_dir * t;
-        let d = sdf(p);
+        let d = scene_sdf(p);
         if (d < MIN_DIST) {
             hit = true;
             break;

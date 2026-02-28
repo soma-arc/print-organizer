@@ -12,7 +12,8 @@
 ///  92: brick_size    (f32)           4 bytes
 ///  96: show_aabb     (u32)           4 bytes
 /// 100: show_bricks   (u32)           4 bytes
-/// 104: _pad6         (u32 x2)        8 bytes
+/// 104: clip_aabb     (u32)           4 bytes
+/// 108: _pad6         (u32)           4 bytes
 /// Total: 112 bytes
 /// ```
 #[repr(C)]
@@ -33,7 +34,8 @@ pub struct GlobalsUniform {
     pub brick_size: f32,
     pub show_aabb: u32,
     pub show_bricks: u32,
-    pub _pad6: [u32; 2],
+    pub clip_aabb: u32,
+    pub _pad6: u32,
 }
 
 impl GlobalsUniform {
@@ -49,6 +51,7 @@ impl GlobalsUniform {
         brick_size: f32,
         show_aabb: bool,
         show_bricks: bool,
+        clip_aabb: bool,
     ) -> Self {
         Self {
             camera_pos,
@@ -66,7 +69,8 @@ impl GlobalsUniform {
             brick_size,
             show_aabb: show_aabb as u32,
             show_bricks: show_bricks as u32,
-            _pad6: [0; 2],
+            clip_aabb: clip_aabb as u32,
+            _pad6: 0,
         }
     }
 }
