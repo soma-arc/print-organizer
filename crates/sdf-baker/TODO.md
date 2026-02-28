@@ -134,7 +134,7 @@ GLSL 版 (R4 で追加):
 
 ---
 
-## Phase R1: GPU compute — 1 ブリック SDF 評価
+## Phase R1: GPU compute — 1 ブリック SDF 評価 ✅ (29d9f66)
 
 ### R1.1 ヘッドレス wgpu デバイス初期化 (gpu.rs)
 - `wgpu::Instance` → `request_adapter` → `request_device`
