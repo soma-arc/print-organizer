@@ -90,7 +90,7 @@ GLSL 版 (R4 で追加):
 
 ---
 
-## Phase R0: ワークスペース化 + クレート骨格
+## Phase R0: ワークスペース化 + クレート骨格 ✅ (0f21e87)
 
 ### R0.1 Cargo workspace 変換
 - ルート `Cargo.toml` に `[workspace]` セクションを追加
