@@ -183,7 +183,7 @@ GLSL 版 (R4 で追加):
 
 ---
 
-## Phase R2: ブリック書き出し (genmesh 仕様準拠)
+## Phase R2: ブリック書き出し (genmesh 仕様準拠) ✅ (62f89dd)
 
 ### R2.1 型定義 (types.rs)
 - `BakeConfig`: aabb_min, aabb_size, voxel_size, dims, brick_size,
