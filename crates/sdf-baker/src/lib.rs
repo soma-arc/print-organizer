@@ -1,3 +1,4 @@
+pub mod bricks_writer;
 pub mod cli;
 pub mod compute;
 pub mod gpu;

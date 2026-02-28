@@ -88,6 +88,15 @@ pub struct BrickResult {
     pub is_background: bool,
 }
 
+/// Complete output from a bake operation.
+#[derive(Debug)]
+pub struct BakeOutput {
+    pub config: BakeConfig,
+    pub bricks: Vec<BrickResult>,
+    /// Wall-clock time for the GPU bake in seconds.
+    pub bake_time_secs: f64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

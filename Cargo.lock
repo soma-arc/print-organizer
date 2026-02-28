@@ -2773,6 +2773,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "wgpu 25.0.2",
 ]
 
