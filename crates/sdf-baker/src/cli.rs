@@ -6,14 +6,19 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "sdf-baker", version, about)]
 pub struct Cli {
+    /// Path to JSON config file. All other args can be specified in the file.
+    /// CLI arguments override config file values.
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+
     /// Path to user SDF shader file (WGSL or GLSL).
     /// If omitted, the built-in sphere SDF is used.
     #[arg(long)]
     pub shader: Option<PathBuf>,
 
     /// Output directory for bricks and mesh files.
-    #[arg(long)]
-    pub out: PathBuf,
+    #[arg(long, required_unless_present = "config")]
+    pub out: Option<PathBuf>,
 
     /// AABB minimum corner (x,y,z).
     #[arg(long, default_value = "0,0,0", value_parser = parse_vec3)]
@@ -123,6 +128,8 @@ mod tests {
     #[test]
     fn test_cli_defaults() {
         let cli = Cli::parse_from(["sdf-baker", "--out", "output"]);
+        assert!(cli.config.is_none());
+        assert_eq!(cli.out, Some(PathBuf::from("output")));
         assert_eq!(cli.aabb_min, [0.0, 0.0, 0.0]);
         assert_eq!(cli.aabb_size, [64.0, 64.0, 64.0]);
         assert_eq!(cli.voxel_size, 1.0);
@@ -140,9 +147,18 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_config_without_out() {
+        // --config can be used without --out
+        let cli = Cli::parse_from(["sdf-baker", "--config", "my.json"]);
+        assert_eq!(cli.config, Some(PathBuf::from("my.json")));
+        assert!(cli.out.is_none());
+    }
+
+    #[test]
     fn test_cli_all_args() {
         let cli = Cli::parse_from([
             "sdf-baker",
+            "--config", "cfg.json",
             "--shader", "my.wgsl",
             "--out", "out",
             "--aabb-min", "1,2,3",

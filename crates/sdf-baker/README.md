@@ -34,7 +34,7 @@ SDF シェーダ (WGSL / GLSL) を GPU compute で評価し、ブリック化さ
 # ワークスペースルートから
 cargo build -p sdf-baker
 
-# テスト (61 tests — GPU 統合テスト含む)
+# テスト (85 tests — GPU 統合テスト含む)
 cargo test -p sdf-baker
 ```
 
@@ -67,6 +67,34 @@ cargo run -p sdf-baker -- \
   --genmesh-path path/to/genmesh.exe
 ```
 
+### 設定ファイル (JSON)
+
+引数をファイルにまとめて実行できる:
+
+```bash
+cargo run -p sdf-baker -- --config examples/gyroid/gyroid.json --out out/gyroid --force
+```
+
+設定ファイルの例 (`gyroid.json`):
+
+```json
+{
+    "shader": "gyroid.wgsl",
+    "out": "out/gyroid",
+    "grid": {
+        "aabb_min": [-64, -64, -64],
+        "aabb_size": [128, 128, 128],
+        "brick_size": 64
+    },
+    "genmesh": {
+        "path": "tools/genmesh/build/Debug/genmesh.exe",
+        "write_vdb": true
+    }
+}
+```
+
+`shader` パスは設定ファイルからの相対パスで解決される。CLI 引数で個別にオーバーライド可能。
+
 ### ブリック書き出しのみ
 
 ```bash
@@ -77,8 +105,9 @@ cargo run -p sdf-baker -- --out output/ --skip-genmesh --force
 
 | フラグ | 必須 | デフォルト | 説明 |
 |--------|------|-----------|------|
+| `--config <path>` | — | — | JSON 設定ファイル (全オプションをファイルで指定可) |
 | `--shader <path>` | — | 内蔵球 SDF | ユーザー SDF シェーダファイル (.wgsl / .glsl / .comp) |
-| `--out <dir>` | ✔ | — | 出力ディレクトリ |
+| `--out <dir>` | ※ | — | 出力ディレクトリ (※ `--config` 未指定時は必須) |
 | `--aabb-min <x,y,z>` | — | `0,0,0` | AABB 最小角 |
 | `--aabb-size <x,y,z>` | — | `64,64,64` | AABB 各軸サイズ |
 | `--voxel-size <float>` | — | `1.0` | ボクセル辺長 (world units) |
@@ -131,7 +160,8 @@ crates/sdf-baker/
 ├── src/
 │   ├── lib.rs               # pub モジュール宣言
 │   ├── main.rs              # CLI エントリポイント + E2E パイプライン
-│   ├── cli.rs               # clap 引数定義 (16 オプション)
+│   ├── cli.rs               # clap 引数定義 (17 オプション)
+│   ├── config.rs            # JSON 設定ファイル読み込み + CLI マージ
 │   ├── gpu.rs               # wgpu ヘッドレスデバイス初期化
 │   ├── shader_compose.rs    # シェーダ合成 (WGSL/GLSL) + naga 変換
 │   ├── compute.rs           # GPU compute パイプライン + bake
@@ -146,8 +176,24 @@ crates/sdf-baker/
 │   ├── test_bricks_writer.rs  #  4 tests — ファイル出力検証
 │   ├── test_shader.rs         #  5 tests — WGSL/GLSL 外部シェーダ
 │   ├── test_multi_brick.rs    #  7 tests — マルチブリック + スパース
+│   ├── test_config.rs         # 12 tests — 設定ファイル + サンプル検証
 │   └── test_e2e.rs            #  5 tests — genmesh 含む E2E
 └── TODO.md                    # 実装フェーズ記録
+```
+
+## サンプル集
+
+ルート `examples/` に実行可能なサンプルを用意している:
+
+| サンプル | 内容 | ブリック数 |
+|---------|------|-----------|
+| [sphere](../../examples/sphere/) | 基本球 SDF | 1 |
+| [gyroid](../../examples/gyroid/) | 周期的ジャイロイド | 8 (2×2×2) |
+| [csg](../../examples/csg/) | 球 − 箱 CSG | 8 |
+| [linked-torus](../../examples/linked-torus/) | 連結トーラス | 8 |
+
+```bash
+cargo run -p sdf-baker -- --config examples/sphere/sphere.json --out out/sphere
 ```
 
 ## 仕様

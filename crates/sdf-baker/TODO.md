@@ -380,3 +380,97 @@ GLSL 版 (R4 で追加):
 - `sdf-baker` を lib として依存に追加
 - GUI 側で `BakeConfig` を構築し `bake_all_bricks` → `run_genmesh` を呼ぶ
 - プレビュー → パラメータ確認 → 生成 の UI フローに組み込む
+
+---
+
+## Phase R6: 設定ファイル (JSON) + サンプル集
+
+### 背景
+- CLI の引数が 16 個あり、手入力が煩雑
+- サンプル SDF シェーダを用意しても、対応するパラメータをセットで管理できない
+- シェーダファイルは将来の GUI からも共有利用するため、特定クレートに閉じない場所に置く
+
+### R6.1 設定ファイルスキーマ設計
+- JSON 形式 (プロジェクト全体が JSON ベース。serde_json は既に依存にある)
+- `--config <path>` で指定。CLI 引数でオーバーライド可能
+- スキーマ:
+  ```json
+  {
+    "shader": "gyroid.wgsl",
+    "out": "out/gyroid",
+    "grid": {
+      "aabb_min": [-64, -64, -64],
+      "aabb_size": [128, 128, 128],
+      "voxel_size": 1.0,
+      "brick_size": 64
+    },
+    "bake": {
+      "half_width": 3,
+      "dtype": "f32"
+    },
+    "mesh": {
+      "iso": 0.0,
+      "adaptivity": 0.0
+    },
+    "genmesh": {
+      "path": "tools/genmesh/build/Debug/genmesh.exe",
+      "write_vdb": false,
+      "skip": false
+    }
+  }
+  ```
+- `shader` パスは設定ファイルからの相対パスで解決する
+- `out` パスは CWD からの相対パス（CLI と同じ挙動）
+- 全フィールド省略可能。省略時は CLI のデフォルト値を使用
+- Accept: 設定ファイル構造体が定義され、デシリアライズできる
+
+### R6.2 CLI に `--config` オプション追加 (cli.rs)
+- `--config <path>` (Optional) を追加
+- 優先順位: CLI 引数 > 設定ファイル > デフォルト値
+- マージロジック:
+  1. 設定ファイルをパース
+  2. CLI 引数が明示指定されている場合はそちらで上書き
+  3. shader パスを設定ファイルの親ディレクトリからの相対で解決
+- Accept: `--config examples/gyroid/gyroid.json` で全パラメータが読まれる
+
+### R6.3 設定ファイルの読み込み・マージ実装 (config.rs 新規)
+- `ConfigFile` 構造体 (serde Deserialize、全フィールド Option)
+- `load_config(path) -> Result<ConfigFile>`
+- `merge_config(cli: &Cli, config: Option<ConfigFile>) -> Result<ResolvedConfig>`
+  - CLI とマージし、最終パラメータを確定
+  - shader の相対パス解決
+- `ResolvedConfig` → 既存の `BakeConfig` 等への変換
+- Accept: ユニットテストでマージロジック (上書き、デフォルト) が正しく動く
+
+### R6.4 サンプル集作成 (examples/)
+- リポジトリルート `examples/` に配置（GUI からも共有利用するため）
+- 各サンプル = ディレクトリ (シェーダ + 設定ファイル):
+  ```
+  examples/
+  ├── sphere/
+  │   ├── sphere.json
+  │   └── sphere.wgsl
+  ├── gyroid/
+  │   ├── gyroid.json
+  │   └── gyroid.wgsl
+  ├── csg/
+  │   ├── csg.json
+  │   └── csg.wgsl
+  └── linked-torus/
+      ├── linked-torus.json
+      └── linked-torus.wgsl
+  ```
+- サンプル内容:
+  - **sphere**: 単純球。1〜8 ブリック。最小動作確認用
+  - **gyroid**: 周期的ジャイロイド構造。全ブリック active。視覚的に面白い
+  - **csg**: 球から箱をくり抜く CSG 合成。典型的な 3D プリント形状
+  - **linked-torus**: 2 つの絡まるトーラス。スパースブリック発生
+- Accept: 各サンプルが `--config examples/<name>/<name>.json` で実行でき、STL が生成される
+
+### R6.5 R6 テスト
+- 設定ファイルのパース (全フィールド / 一部省略 / 空)
+- CLI 引数によるオーバーライド
+- shader の相対パス解決
+- 不正 JSON → エラーメッセージ
+- 各サンプルの E2E 実行 (genmesh がある環境)
+- Accept: `cargo test -p sdf-baker` が green

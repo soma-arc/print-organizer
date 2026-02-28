@@ -5,10 +5,10 @@ use clap::Parser;
 use sdf_baker::bricks_writer::{write_bricks, write_manifest};
 use sdf_baker::cli::Cli;
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
+use sdf_baker::config::resolve_config;
 use sdf_baker::genmesh_runner::{run_genmesh, GenmeshRunConfig};
 use sdf_baker::gpu::init_gpu;
 use sdf_baker::shader_compose::{compose_shader, load_shader, ShaderLang, BUILTIN_SPHERE_SDF};
-use sdf_baker::types::BakeConfig;
 
 fn main() {
     let cli = Cli::parse();
@@ -35,14 +35,23 @@ fn main() {
 fn run_pipeline(cli: &Cli) -> Result<()> {
     let total_start = Instant::now();
 
+    // 0. Resolve config (merge config file + CLI args)
+    let resolved = resolve_config(cli, cli.config.as_deref())?;
+    let out = &resolved.out;
+    let config = &resolved.bake_config;
+
+    if let Some(ref config_path) = cli.config {
+        log::info!("Config: {}", config_path.display());
+    }
+
     // 1. Prepare output directory
-    if cli.out.exists() && !cli.force {
+    if out.exists() && !resolved.force {
         anyhow::bail!(
             "Output directory already exists: {}. Use --force to overwrite.",
-            cli.out.display()
+            out.display()
         );
     }
-    std::fs::create_dir_all(&cli.out)?;
+    std::fs::create_dir_all(out)?;
 
     // 2. GPU device init
     log::info!("Initializing GPU...");
@@ -51,7 +60,7 @@ fn run_pipeline(cli: &Cli) -> Result<()> {
     log::info!("GPU init: {:.1}ms", gpu_start.elapsed().as_secs_f64() * 1000.0);
 
     // 3. Load shader
-    let (lang, user_sdf) = if let Some(ref shader_path) = cli.shader {
+    let (lang, user_sdf) = if let Some(ref shader_path) = resolved.shader {
         log::info!("Loading shader: {}", shader_path.display());
         load_shader(shader_path)?
     } else {
@@ -65,17 +74,7 @@ fn run_pipeline(cli: &Cli) -> Result<()> {
     let (pipeline, layout) =
         create_compute_pipeline(&ctx.device, &composed.wgsl_source, &composed.entry_point)?;
 
-    // 5. Build config
-    let config = BakeConfig::new(
-        cli.aabb_min,
-        cli.aabb_size,
-        cli.voxel_size,
-        cli.brick_size,
-        cli.half_width,
-        cli.iso,
-        cli.adaptivity,
-        cli.dtype.clone(),
-    );
+    // 5. Config already built by resolve_config
     log::info!(
         "Grid: dims={:?}, brick_size={}, bricks={:?}",
         config.dims,
@@ -86,30 +85,29 @@ fn run_pipeline(cli: &Cli) -> Result<()> {
     // 6. Bake all bricks
     log::info!("Baking SDF...");
     let bake_start = Instant::now();
-    let bricks = bake_all_bricks(&ctx, &pipeline, &layout, &config)?;
+    let bricks = bake_all_bricks(&ctx, &pipeline, &layout, config)?;
     let bake_time = bake_start.elapsed();
     log::info!("Bake complete: {:.1}ms", bake_time.as_secs_f64() * 1000.0);
 
     // 7. Write bricks output
-    log::info!("Writing bricks to {}...", cli.out.display());
-    write_manifest(&cli.out, &config)?;
-    write_bricks(&cli.out, &config, &bricks)?;
+    log::info!("Writing bricks to {}...", out.display());
+    write_manifest(out, config)?;
+    write_bricks(out, config, &bricks)?;
 
     // 8. Run genmesh (unless skipped)
-    if cli.skip_genmesh {
+    if resolved.skip_genmesh {
         log::info!("Skipping genmesh (--skip-genmesh)");
     } else {
-        let genmesh_path = cli.genmesh_path.clone().unwrap_or_else(|| {
-            // Default: look for genmesh next to sdf-baker or in PATH
+        let genmesh_path = resolved.genmesh_path.clone().unwrap_or_else(|| {
             std::path::PathBuf::from("genmesh")
         });
 
         let genmesh_config = GenmeshRunConfig {
             genmesh_path,
-            out_dir: cli.out.clone(),
-            iso: cli.iso,
-            adaptivity: cli.adaptivity,
-            write_vdb: cli.write_vdb,
+            out_dir: out.clone(),
+            iso: config.iso,
+            adaptivity: config.adaptivity,
+            write_vdb: resolved.write_vdb,
         };
 
         let result = run_genmesh(&genmesh_config)?;
