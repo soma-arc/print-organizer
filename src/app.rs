@@ -778,7 +778,18 @@ impl eframe::App for MyApp {
                     // --- Output dir override ---
                     ui.separator();
                     ui.label("出力先ディレクトリ:");
-                    ui.text_edit_singleline(&mut self.out_dir_override);
+                    ui.horizontal(|ui| {
+                        ui.text_edit_singleline(&mut self.out_dir_override);
+                        let can_open = !self.out_dir_override.is_empty()
+                            && std::path::Path::new(&self.out_dir_override).exists();
+                        if ui
+                            .add_enabled(can_open, egui::Button::new("📂"))
+                            .on_hover_text("フォルダを開く")
+                            .clicked()
+                        {
+                            let _ = opener::open(&self.out_dir_override);
+                        }
+                    });
                     ui.checkbox(&mut self.force_overwrite, "上書き許可 (force)");
 
                     // --- Preview overlays ---
