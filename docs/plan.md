@@ -55,6 +55,7 @@
 ### 4.1 プロジェクト単位
 
 - 1作品=1プロジェクトフォルダ（または1つのアーカイブ）
+- **→ フィールド仕様・プリセット設計: [docs/spec/project-json.md](spec/project-json.md)**
 - 推奨構造（例）
   - project.json: メタ情報・生成条件（v1）
   - schemas/: manifest.v1.schema.json（推奨）
