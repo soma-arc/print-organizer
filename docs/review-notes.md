@@ -67,11 +67,13 @@
 
 ## 4. 配布・運用
 
-### 4.1 genmesh実行パス
+### 4.1 genmesh実行パス ✅
 
 - **ファイル**: `crates/sdf-baker/src/genmesh_runner.rs`
 - **問題**: `genmesh_path` のデフォルトが `"genmesh"` でPATHに依存
-- **推奨**: 配布時はより明示的なパス解決（実行ファイル同梱ディレクトリ等）
+- **対応**: 4段階の探索順を設計（`docs/spec/project-json.md` §1「`genmesh.path` 探索順」参照）
+  1. project.json `genmesh.path` → 2. 環境変数 `PRINT_ORGANIZER_GENMESH` → 3. exe同梱ディレクトリ → 4. PATH
+- **ステータス**: spec 策定済み、実装は未着手
 
 ### 4.2 パラメータ編集UI
 
@@ -88,6 +90,6 @@
 | 高 | `ConfigInfo::out` のdead_code警告を解消 | ✅ |
 | 高 | genmesh `require_field<T>` 型チェック改善 | ✅ |
 | 中 | `extract_user_functions()` のnagaバージョン依存を文書化 | ✅ |
-| 中 | genmesh実行パスの明示的解決 |
+| 中 | genmesh実行パスの明示的解決 | ✅ spec策定済み（実装未着手） |
 | 低 | レイマーチパラメータのUniform化 |
 | 低 | half_to_float のC++20モダン化 |
