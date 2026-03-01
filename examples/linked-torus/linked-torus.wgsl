@@ -4,7 +4,9 @@ fn sdf_torus(p: vec3<f32>, R: f32, r: f32) -> f32 {
 }
 
 fn sdf(p: vec3<f32>) -> f32 {
-    let c = vec3<f32>(64.0, 64.0, 64.0);
+    // Center x=49 places combined X span [11,117] centered in AABB [0,128]
+    // (total span = 106mm: t1 [x-38,x+38], t2 offset +30 -> [x-8,x+68])
+    let c = vec3<f32>(49.0, 64.0, 64.0);
 
     // Horizontal torus
     let t1 = sdf_torus(p - c, 30.0, 8.0);
