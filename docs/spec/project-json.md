@@ -30,11 +30,11 @@
 
 ```jsonc
 {
-    // SDF シェーダファイルへのパス（project.json からの相対パス）
+    // SDF シェーダファイルへのパス（config-relative; 下記「パス解決規則」参照）
     // 省略時: built-in sphere SDF
     "shader": "csg.wgsl",
 
-    // 出力先ディレクトリ（project.json からの相対パス）
+    // 出力先ディレクトリ（config-relative; 下記「パス解決規則」参照）
     // 省略時: GUI の出力先フィールドで上書き必須
     "out": "output/csg",
 
@@ -99,6 +99,18 @@
 > **開発時の運用**: `$env:PRINT_ORGANIZER_GENMESH` を設定すれば、project.json に
 > ビルドパスを書く必要がなくなり、全プロジェクトで共通のパスが使われる。
 > Debug/Release の切り替えは環境変数を変えるだけで済む。
+
+### パス解決規則
+
+project.json 内のパスフィールド（`shader`, `out`, `genmesh.path`）はすべて **config-relative**（project.json の親ディレクトリ基準）で解決する。
+
+- 絶対パスも記載可だが、ポータビリティのため相対パスを推奨
+- CLI `--out` 引数は CWD-relative（シェルでの自然な挙動を維持）
+- GUI 上の出力先入力欄は絶対パスで扱う（ファイルダイアログ由来）
+
+### JSON Schema
+
+型定義: `docs/schemas/project.v1.schema.json`
 
 ---
 

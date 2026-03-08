@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/print-organizer/project.v1.schema.json",
+  "title": "project.json v1",
+  "description": "SDF作品のプロジェクト設定ファイル (project.json)。全フィールドはオプション。",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "shader": {
+      "type": "string",
+      "description": "SDFシェーダファイルへのパス (project.json からの相対パス)。省略時は built-in sphere SDF。"
+    },
+    "out": {
+      "type": "string",
+      "description": "出力先ディレクトリ (project.json からの相対パス)。省略時は GUI 入力必須。"
+    },
+    "grid": {
+      "type": "object",
+      "description": "グリッド設定",
+      "additionalProperties": false,
+      "properties": {
+        "aabb_min": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3,
+          "default": [0, 0, 0],
+          "description": "AABB 原点 [x, y, z] (mm)"
+        },
+        "aabb_size": {
+          "type": "array",
+          "items": { "type": "number", "exclusiveMinimum": 0 },
+          "minItems": 3,
+          "maxItems": 3,
+          "default": [64, 64, 64],
+          "description": "AABB サイズ [x, y, z] (mm)"
+        },
+        "voxel_size": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1.0,
+          "description": "ボクセルサイズ (mm)"
+        },
+        "brick_size": {
+          "type": "integer",
+          "enum": [32, 64, 128],
+          "default": 64,
+          "description": "ブリックサイズ (voxel)。32, 64, 128 のいずれか。"
+        }
+      }
+    },
+    "bake": {
+      "type": "object",
+      "description": "ベイク設定",
+      "additionalProperties": false,
+      "properties": {
+        "half_width": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "ナローバンド半幅 (voxel)"
+        },
+        "dtype": {
+          "type": "string",
+          "enum": ["f32", "f16"],
+          "default": "f32",
+          "description": "距離場データ型"
+        }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "description": "メッシュ化設定",
+      "additionalProperties": false,
+      "properties": {
+        "iso": {
+          "type": "number",
+          "default": 0.0,
+          "description": "iso 値 (mm)"
+        },
+        "adaptivity": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.0,
+          "description": "ポリゴン削減強度 [0.0–1.0]"
+        }
+      }
+    },
+    "genmesh": {
+      "type": "object",
+      "description": "genmesh (C++ CLI) 設定",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "genmesh 実行ファイルパス。省略時は自動探索 (project.json → 環境変数 PRINT_ORGANIZER_GENMESH → exe同梱ディレクトリ → PATH)。"
+        },
+        "write_vdb": {
+          "type": "boolean",
+          "default": false,
+          "description": ".vdb ファイルも出力するか"
+        },
+        "skip": {
+          "type": "boolean",
+          "default": false,
+          "description": "genmesh 呼び出しをスキップするか"
+        }
+      }
+    }
+  }
+}
