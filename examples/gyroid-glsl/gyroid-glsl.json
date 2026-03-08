@@ -7,7 +7,6 @@
         "brick_size": 64
     },
     "genmesh": {
-        "path": "tools/genmesh/build/Debug/genmesh.exe",
         "write_vdb": true
     }
 }

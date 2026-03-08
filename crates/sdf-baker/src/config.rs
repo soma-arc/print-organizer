@@ -16,7 +16,7 @@ use crate::types::BakeConfig;
 pub struct ConfigFile {
     /// Path to SDF shader file (resolved relative to config file).
     pub shader: Option<String>,
-    /// Output directory (resolved relative to CWD, same as CLI).
+    /// Output directory (resolved relative to config file directory).
     pub out: Option<String>,
 
     /// Grid parameters.
@@ -82,6 +82,43 @@ pub fn load_config(path: &Path) -> Result<ConfigFile> {
     Ok(config)
 }
 
+/// Resolve genmesh executable path using a 4-tier search:
+///
+/// 1. Explicit path (from config or CLI `--genmesh-path`)
+/// 2. `PRINT_ORGANIZER_GENMESH` environment variable
+/// 3. Same directory as the current executable (`exe_dir/genmesh`)
+/// 4. Bare name `"genmesh"` (relies on PATH)
+pub fn resolve_genmesh_path(explicit: Option<PathBuf>) -> PathBuf {
+    // Tier 1: explicit path
+    if let Some(p) = explicit {
+        return p;
+    }
+
+    // Tier 2: environment variable
+    if let Ok(env_path) = std::env::var("PRINT_ORGANIZER_GENMESH") {
+        if !env_path.is_empty() {
+            return PathBuf::from(env_path);
+        }
+    }
+
+    // Tier 3: exe-adjacent
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let candidate = if cfg!(windows) {
+                exe_dir.join("genmesh.exe")
+            } else {
+                exe_dir.join("genmesh")
+            };
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+    }
+
+    // Tier 4: PATH fallback
+    PathBuf::from("genmesh")
+}
+
 /// Merge CLI arguments with an optional config file into a ResolvedConfig.
 ///
 /// Priority: CLI explicit args > config file > CLI defaults.
@@ -117,12 +154,13 @@ pub fn resolve_config(cli: &Cli, config_path: Option<&Path>) -> Result<ResolvedC
         None
     };
 
-    // Resolve output directory: CLI --out takes priority, then config file out.
-    // Config file `out` is relative to CWD (same as CLI behavior).
+    // Resolve output directory: CLI --out takes priority (CWD-relative),
+    // then config file out (config-relative).
     let out = if let Some(ref cli_out) = cli.out {
         cli_out.clone()
     } else if let Some(ref out_str) = cfg.and_then(|c| c.out.as_ref()) {
-        PathBuf::from(out_str)
+        let base = cfg_dir.as_deref().unwrap_or_else(|| Path::new("."));
+        base.join(out_str)
     } else {
         anyhow::bail!("Output directory must be specified via --out or config file 'out' field");
     };
@@ -155,7 +193,8 @@ pub fn resolve_config(cli: &Cli, config_path: Option<&Path>) -> Result<ResolvedC
     let genmesh_path = if cli.genmesh_path.is_some() {
         cli.genmesh_path.clone()
     } else if let Some(ref path_str) = cfg.and_then(|c| c.genmesh.path.as_ref()) {
-        Some(PathBuf::from(path_str))
+        let base = cfg_dir.as_deref().unwrap_or_else(|| Path::new("."));
+        Some(base.join(path_str))
     } else {
         None
     };
@@ -397,9 +436,10 @@ mod tests {
 
         let cli = default_cli("out");
         let resolved = resolve_config(&cli, Some(&config_path)).unwrap();
+        // genmesh.path is config-relative
         assert_eq!(
             resolved.genmesh_path,
-            Some(PathBuf::from("tools/genmesh.exe"))
+            Some(dir.path().join("tools/genmesh.exe"))
         );
         assert!(resolved.write_vdb);
         assert!(resolved.skip_genmesh);
@@ -418,5 +458,55 @@ mod tests {
 
         // shader path should be sub/sdf.wgsl
         assert_eq!(resolved.shader, Some(sub.join("sdf.wgsl")));
+    }
+
+    #[test]
+    fn test_resolve_out_relative_to_config_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let sub = dir.path().join("project");
+        std::fs::create_dir(&sub).unwrap();
+        let config_path = sub.join("cfg.json");
+        std::fs::write(&config_path, r#"{ "out": "output/test" }"#).unwrap();
+
+        // CLI --out is not set
+        let mut cli = default_cli("out");
+        cli.out = None;
+        let resolved = resolve_config(&cli, Some(&config_path)).unwrap();
+
+        // out should be resolved relative to config dir
+        assert_eq!(resolved.out, sub.join("output/test"));
+    }
+
+    #[test]
+    fn test_resolve_cli_out_is_cwd_relative() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("cfg.json");
+        std::fs::write(&config_path, r#"{ "out": "config_output" }"#).unwrap();
+
+        // CLI --out takes priority and is CWD-relative (not config-relative)
+        let cli = default_cli("cli_output");
+        let resolved = resolve_config(&cli, Some(&config_path)).unwrap();
+
+        assert_eq!(resolved.out, PathBuf::from("cli_output"));
+    }
+
+    #[test]
+    fn test_resolve_genmesh_path_env_fallback() {
+        // With no explicit path and no env var, should fall back to PATH
+        let result = resolve_genmesh_path(None);
+        // In test env without PRINT_ORGANIZER_GENMESH set and no exe-adjacent genmesh,
+        // should return bare "genmesh"
+        assert!(
+            result == PathBuf::from("genmesh") || result.exists(),
+            "Expected 'genmesh' or an existing path, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_resolve_genmesh_path_explicit() {
+        let explicit = PathBuf::from("/custom/path/genmesh");
+        let result = resolve_genmesh_path(Some(explicit.clone()));
+        assert_eq!(result, explicit);
     }
 }

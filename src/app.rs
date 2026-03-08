@@ -44,7 +44,7 @@ fn spawn_bake(config_path: PathBuf, out_dir: PathBuf, force: bool, tx: mpsc::Sen
 fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> BakeResult {
     use sdf_baker::bricks_writer::{write_bricks, write_manifest};
     use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
-    use sdf_baker::config::load_config;
+    use sdf_baker::config::{load_config, resolve_genmesh_path};
     use sdf_baker::genmesh_runner::{GenmeshRunConfig, run_genmesh};
     use sdf_baker::gpu::init_gpu;
     use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, ShaderLang, compose_shader, load_shader};
@@ -74,7 +74,7 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
     let dtype = cfg.bake.dtype.clone().unwrap_or_else(|| "f32".to_string());
     let write_vdb = cfg.genmesh.write_vdb.unwrap_or(false);
     let skip_genmesh = cfg.genmesh.skip.unwrap_or(false);
-    let genmesh_path = cfg.genmesh.path.clone();
+    let genmesh_path = cfg.genmesh.path.as_ref().map(|p| cfg_dir.join(p));
 
     let bake_config = BakeConfig::new(
         aabb_min, aabb_size, voxel_size, brick_size, half_width, iso, adaptivity, dtype,
@@ -138,9 +138,7 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
     let mut vertices = None;
 
     if !skip_genmesh {
-        let genmesh_exe = genmesh_path
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("genmesh"));
+        let genmesh_exe = resolve_genmesh_path(genmesh_path);
 
         let genmesh_config = GenmeshRunConfig {
             genmesh_path: genmesh_exe,
@@ -230,7 +228,12 @@ impl ConfigInfo {
             half_width,
             iso: cfg.mesh.iso.unwrap_or(0.0),
             adaptivity: cfg.mesh.adaptivity.unwrap_or(0.0),
-            genmesh_path: cfg.genmesh.path.clone().unwrap_or_else(|| "genmesh".into()),
+            genmesh_path: {
+                let explicit = cfg.genmesh.path.as_ref().map(|p| cfg_dir.join(p));
+                sdf_baker::config::resolve_genmesh_path(explicit)
+                    .display()
+                    .to_string()
+            },
             write_vdb: cfg.genmesh.write_vdb.unwrap_or(false),
         }
     }
@@ -804,10 +807,7 @@ impl eframe::App for MyApp {
                     {
                         self.needs_repaint = true;
                     }
-                    if ui
-                        .checkbox(&mut self.clip_aabb, "AABB クリップ")
-                        .changed()
-                    {
+                    if ui.checkbox(&mut self.clip_aabb, "AABB クリップ").changed() {
                         self.needs_repaint = true;
                     }
 

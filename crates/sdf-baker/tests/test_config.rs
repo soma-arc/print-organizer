@@ -109,11 +109,11 @@ fn test_config_out_from_config_file() {
     let config_path = dir.path().join("test.json");
     std::fs::write(&config_path, r#"{ "out": "my_output_dir" }"#).unwrap();
 
-    // CLI has no --out, config has out
+    // CLI has no --out, config has out (resolved relative to config dir)
     let mut cli = cli_with_out("_unused");
     cli.out = None;
     let resolved = resolve_config(&cli, Some(&config_path)).unwrap();
-    assert_eq!(resolved.out, PathBuf::from("my_output_dir"));
+    assert_eq!(resolved.out, dir.path().join("my_output_dir"));
 }
 
 #[test]

@@ -224,7 +224,10 @@ float sdf(vec3 p) {
     #[test]
     fn test_glsl_sdf_to_wgsl_extracts_function() {
         let wgsl_sdf = glsl_sdf_to_wgsl(SPHERE_GLSL).unwrap();
-        assert!(wgsl_sdf.contains("fn sdf("), "Extracted WGSL must contain sdf function");
+        assert!(
+            wgsl_sdf.contains("fn sdf("),
+            "Extracted WGSL must contain sdf function"
+        );
         assert!(!wgsl_sdf.contains("fn main("), "Must not contain main");
     }
 }

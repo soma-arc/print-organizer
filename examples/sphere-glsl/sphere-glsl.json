@@ -4,8 +4,5 @@
     "grid": {
         "aabb_size": [64, 64, 64],
         "brick_size": 64
-    },
-    "genmesh": {
-        "path": "tools/genmesh/build/Debug/genmesh.exe"
     }
 }

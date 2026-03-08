@@ -18,3 +18,4 @@ naga = { version = "27", features = ["glsl-in", "wgsl-in", "wgsl-out"] }
 
 [dev-dependencies]
 tempfile = "3"
+jsonschema = "0.44"

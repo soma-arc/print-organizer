@@ -5,7 +5,7 @@ use clap::Parser;
 use sdf_baker::bricks_writer::{write_bricks, write_manifest};
 use sdf_baker::cli::Cli;
 use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
-use sdf_baker::config::resolve_config;
+use sdf_baker::config::{resolve_config, resolve_genmesh_path};
 use sdf_baker::genmesh_runner::{GenmeshRunConfig, run_genmesh};
 use sdf_baker::gpu::init_gpu;
 use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, ShaderLang, compose_shader, load_shader};
@@ -101,10 +101,7 @@ fn run_pipeline(cli: &Cli) -> Result<()> {
     if resolved.skip_genmesh {
         log::info!("Skipping genmesh (--skip-genmesh)");
     } else {
-        let genmesh_path = resolved
-            .genmesh_path
-            .clone()
-            .unwrap_or_else(|| std::path::PathBuf::from("genmesh"));
+        let genmesh_path = resolve_genmesh_path(resolved.genmesh_path.clone());
 
         let genmesh_config = GenmeshRunConfig {
             genmesh_path,
