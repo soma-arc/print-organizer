@@ -72,12 +72,18 @@
 
 - **原則**: `bake.rs`, `config_info.rs`, `camera.rs` は `MyApp` に依存しない独立モジュール。
 - **BakeStatus の配置**: `BakeStatus`(Idle/Running/Done) は UI 状態機械なので `mod.rs` に残す。`BakeResult` のみ `bake.rs` に配置。
-- **renderer.rs の方式**: `impl MyApp` メソッドを別ファイルに分割する方式A を採用。`new()` 内の GPU 初期化補助（バッファ・テクスチャ生成等）も `renderer.rs` に寄せ、レンダリング責務の分散を避ける。独立 `Renderer` 構造体（方式B）は `render_to_texture` が 8 フィールドを参照するため引数が煩雑になる。将来 MyApp がさらに肥大化した場合に方式Bへ移行を検討。
-- **段階的方針**: まず「見通し改善」を目的にファイル分割し、次段で「境界整理」（`load_config_file()` の抽出等）を検討する。
+- **renderer.rs の方式**: `impl MyApp` メソッドを別ファイルに分割する方式A を採用。`new()` 内の GPU 初期化補助（バッファ・テクスチャ生成等）も `renderer.rs` に寄せ、レンダリング責務の分散を避ける。
 - **互換性**: `app.rs` → `app/mod.rs` 変更は `main.rs` の `mod app;` に互換。
-- **ステータス**: ✅ 実装済み (3f8065e)
+- **ステータス**: ✅ ファイル分割完了 (3f8065e)
 
-### 3.5 レイマーチパラメータ
+### 3.5 app モジュール境界の整理（将来）
+
+- **前提**: §3.4 のファイル分割（方式A）は完了。ここでは次段の構造改善を扱う。
+- **renderer.rs 方式B への移行**: 独立 `Renderer` 構造体を導入し `MyApp` との結合を断つ。現状 `render_to_texture` が 8 フィールドを参照するため引数が煩雑になる問題あり。MyApp がさらに肥大化した場合に検討。
+- **`load_config_file()` の抽出**: 設定読み込み・シェーダ再構築・カメラリセットが結合している。config_info 側に分離可能。
+- **ステータス**: 未着手
+
+### 3.6 レイマーチパラメータ
 
 - **ファイル**: `src/shaders/raymarch_template.wgsl:152`
 - **問題**: `MAX_STEPS=256`, `MIN_DIST=0.001` がハードコード
@@ -112,6 +118,7 @@
 | 高 | genmesh `require_field<T>` 型チェック改善 | ✅ |
 | 中 | `extract_user_functions()` のnagaバージョン依存を文書化 | ✅ |
 | 中 | genmesh実行パスの明示的解決 | ✅ 実装済み (a149324) |
-| 中 | app.rs 分割 (§3.4) | ✅ 実装済み (3f8065e) |
+| 中 | app.rs ファイル分割 (§3.4) | ✅ 完了 (3f8065e) |
+| 低 | app モジュール境界整理 (§3.5) |
 | 低 | レイマーチパラメータのUniform化 |
 | 低 | half_to_float のC++20モダン化 |
