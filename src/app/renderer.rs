@@ -163,10 +163,10 @@ impl MyApp {
                 self.render_pipeline =
                     create_render_pipeline(device, &shader, &self.bind_group_layout);
                 self.preview_active = true;
-                self.shader_error = None;
+                self.shader_errors.clear();
             }
             Err(e) => {
-                self.shader_error = Some(format!("{e:#}"));
+                self.set_shader_error(e);
             }
         }
     }

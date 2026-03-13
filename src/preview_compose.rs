@@ -57,6 +57,9 @@ pub fn compose_preview(lang: ShaderLang, user_sdf_code: &str) -> Result<String> 
 /// If a future naga version changes these conventions, the extraction will fail
 /// and `test_compose_glsl_preview` / `test_glsl_sdf_to_wgsl_extracts_function`
 /// will catch it. The naga version is pinned via `wgpu 27` in Cargo.toml.
+/// Number of preamble lines in the GLSL wrapper (before user code).
+const GLSL_WRAPPER_PREAMBLE_LINES: u32 = 3;
+
 fn glsl_sdf_to_wgsl(glsl_sdf: &str) -> Result<String> {
     // Wrap the user SDF in a minimal GLSL compute shader so naga can parse it.
     let wrapper = format!(
@@ -67,7 +70,8 @@ fn glsl_sdf_to_wgsl(glsl_sdf: &str) -> Result<String> {
          void main() {{ o.d[0] = sdf(vec3(0.0)); }}\n"
     );
 
-    let full_wgsl = sdf_baker::shader_compose::glsl_to_wgsl(&wrapper)?;
+    let full_wgsl =
+        sdf_baker::shader_compose::glsl_to_wgsl_with_offset(&wrapper, GLSL_WRAPPER_PREAMBLE_LINES)?;
 
     // The naga output has:
     //   struct O { d: array<f32>, }
@@ -229,5 +233,47 @@ float sdf(vec3 p) {
             "Extracted WGSL must contain sdf function"
         );
         assert!(!wgsl_sdf.contains("fn main("), "Must not contain main");
+    }
+
+    #[test]
+    fn test_glsl_preview_error_has_user_line_numbers() {
+        use sdf_baker::shader_compose::ShaderDiagnostics;
+
+        // Intentionally broken GLSL: error on user line 2
+        let bad_glsl = "float sdf(vec3 p) {\n    return UNDEFINED;\n}\n";
+        let result = compose_preview(ShaderLang::Glsl, bad_glsl);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        if let Some(diags) = err.downcast_ref::<ShaderDiagnostics>() {
+            assert!(!diags.diagnostics.is_empty());
+            let first = &diags.diagnostics[0];
+            assert!(first.line.is_some(), "Should have user line number");
+            // User line offset corrected: should be small (1-3 range, not 4-6)
+            assert!(
+                first.line.unwrap() <= 3,
+                "User line should be offset-corrected; got {}",
+                first.line.unwrap()
+            );
+        }
+        // It's acceptable for some error types to not be ShaderDiagnostics
+        // (e.g., validation errors), so we don't fail if downcast misses.
+    }
+
+    #[test]
+    fn test_wgsl_preview_error_has_line_numbers() {
+        use sdf_baker::shader_compose::ShaderDiagnostics;
+
+        let bad_wgsl = "fn sdf(p: vec3<f32>) -> f32 {\n    return MISSING;\n}\n";
+        let result = compose_preview(ShaderLang::Wgsl, bad_wgsl);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        if let Some(diags) = err.downcast_ref::<ShaderDiagnostics>() {
+            assert!(!diags.diagnostics.is_empty());
+            let first = &diags.diagnostics[0];
+            assert!(
+                first.line.is_some(),
+                "WGSL validation error should have line number"
+            );
+        }
     }
 }

@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use eframe::{egui, wgpu};
 use notify::Watcher as _;
+use sdf_baker::shader_compose::{ShaderDiagnostic, ShaderDiagnostics};
 
 mod bake;
 mod camera;
@@ -53,8 +54,8 @@ pub struct MyApp {
     camera: OrbitCamera,
     /// true when a valid preview shader has been compiled
     preview_active: bool,
-    /// Error from the last shader compilation attempt
-    shader_error: Option<String>,
+    /// Errors from the last shader compilation attempt
+    shader_errors: Vec<ShaderDiagnostic>,
     /// true while camera/input is being manipulated (continuous repaint)
     needs_repaint: bool,
     /// Show AABB wireframe overlay
@@ -122,7 +123,7 @@ impl MyApp {
 
             camera,
             preview_active: false,
-            shader_error: None,
+            shader_errors: Vec::new(),
             needs_repaint: false,
             show_aabb: true,
             show_bricks: false,
@@ -172,8 +173,7 @@ impl MyApp {
                             self.rebuild_preview_pipeline(device, lang, &user_sdf);
                         }
                         Err(e) => {
-                            self.shader_error = Some(format!("{e:#}"));
-                            self.preview_active = false;
+                            self.set_shader_error(e);
                         }
                     }
                     self.start_watching_shader(&shader_path);
@@ -258,11 +258,24 @@ impl MyApp {
                 log::info!("Shader reloaded: {}", shader_path.display());
             }
             Err(e) => {
-                self.shader_error = Some(format!("{e:#}"));
-                self.preview_active = false;
+                self.set_shader_error(e);
             }
         }
         self.needs_repaint = true;
+    }
+
+    /// Extract structured diagnostics from an anyhow error and store them.
+    fn set_shader_error(&mut self, err: anyhow::Error) {
+        if let Some(diags) = err.downcast_ref::<ShaderDiagnostics>() {
+            self.shader_errors = diags.diagnostics.clone();
+        } else {
+            self.shader_errors = vec![ShaderDiagnostic {
+                line: None,
+                column: None,
+                message: format!("{err:#}"),
+            }];
+        }
+        self.preview_active = false;
     }
 }
 
@@ -511,8 +524,14 @@ impl eframe::App for MyApp {
         // ---------------------------------------------------------------
         egui::CentralPanel::default().show(ctx, |ui| {
             // --- shader error banner ---
-            if let Some(ref err) = self.shader_error {
-                ui.colored_label(egui::Color32::YELLOW, format!("⚠ Shader: {err}"));
+            if !self.shader_errors.is_empty() {
+                ui.colored_label(
+                    egui::Color32::YELLOW,
+                    format!("⚠ Shader errors ({})", self.shader_errors.len()),
+                );
+                for diag in &self.shader_errors {
+                    ui.colored_label(egui::Color32::YELLOW, format!("  {diag}"));
+                }
             }
 
             let available = ui.available_size();
