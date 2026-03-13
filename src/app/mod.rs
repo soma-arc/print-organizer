@@ -640,7 +640,10 @@ impl eframe::App for MyApp {
         }
 
         // L7: request repaint only when needed
-        if self.needs_repaint || matches!(self.bake_status, BakeStatus::Running) {
+        if self.needs_repaint
+            || matches!(self.bake_status, BakeStatus::Running)
+            || self.pending_reload.is_some()
+        {
             ctx.request_repaint();
         }
     }
