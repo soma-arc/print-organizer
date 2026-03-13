@@ -6,6 +6,46 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 
+/// A single shader diagnostic with optional source location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShaderDiagnostic {
+    /// 1-based line number in the user's source (if available).
+    pub line: Option<u32>,
+    /// 1-based column (if available).
+    pub column: Option<u32>,
+    /// Human-readable error message.
+    pub message: String,
+}
+
+impl std::fmt::Display for ShaderDiagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.line {
+            Some(l) => write!(f, "L{l}: {}", self.message),
+            None => write!(f, "{}", self.message),
+        }
+    }
+}
+
+/// Error type for shader compilation failures with structured diagnostics.
+#[derive(Debug, Clone)]
+pub struct ShaderDiagnostics {
+    pub diagnostics: Vec<ShaderDiagnostic>,
+}
+
+impl std::fmt::Display for ShaderDiagnostics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, d) in self.diagnostics.iter().enumerate() {
+            if i > 0 {
+                writeln!(f)?;
+            }
+            write!(f, "{d}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ShaderDiagnostics {}
+
 const COMPUTE_TEMPLATE_WGSL: &str = include_str!("../shaders/compute_template.wgsl");
 const COMPUTE_TEMPLATE_GLSL: &str = include_str!("../shaders/compute_template.glsl");
 
@@ -118,13 +158,51 @@ pub fn compose_shader(lang: ShaderLang, user_sdf_code: &str) -> Result<ComposedS
 
 /// Validate a WGSL shader source using naga's parser.
 pub fn validate_wgsl(source: &str) -> Result<()> {
-    naga::front::wgsl::parse_str(source)
-        .map_err(|e| anyhow::anyhow!("WGSL validation failed: {e}"))?;
+    naga::front::wgsl::parse_str(source).map_err(|e| {
+        let diags = wgsl_parse_error_to_diagnostics(&e, source);
+        anyhow::Error::new(diags)
+    })?;
     Ok(())
+}
+
+/// Extract structured diagnostics from a WGSL parse error.
+fn wgsl_parse_error_to_diagnostics(
+    err: &naga::front::wgsl::ParseError,
+    source: &str,
+) -> ShaderDiagnostics {
+    let mut diagnostics = Vec::new();
+    let mut first = true;
+    for (span, _label) in err.labels() {
+        if first {
+            let loc = span.location(source);
+            diagnostics.push(ShaderDiagnostic {
+                line: Some(loc.line_number),
+                column: Some(loc.line_position),
+                message: err.message().to_string(),
+            });
+            first = false;
+        }
+    }
+    if first {
+        // No spans available
+        diagnostics.push(ShaderDiagnostic {
+            line: None,
+            column: None,
+            message: err.message().to_string(),
+        });
+    }
+    ShaderDiagnostics { diagnostics }
 }
 
 /// Convert a complete GLSL compute shader to WGSL using naga.
 pub fn glsl_to_wgsl(glsl_source: &str) -> Result<String> {
+    glsl_to_wgsl_with_offset(glsl_source, 0)
+}
+
+/// Convert a complete GLSL compute shader to WGSL using naga,
+/// subtracting `line_offset` from reported line numbers to map back
+/// to the user's original source.
+pub fn glsl_to_wgsl_with_offset(glsl_source: &str, line_offset: u32) -> Result<String> {
     use naga::back::wgsl;
     use naga::front::glsl::{Frontend, Options};
     use naga::valid::{Capabilities, ValidationFlags, Validator};
@@ -135,8 +213,20 @@ pub fn glsl_to_wgsl(glsl_source: &str) -> Result<String> {
     let module = frontend
         .parse(&options, glsl_source)
         .map_err(|parse_errors| {
-            let msgs: Vec<String> = parse_errors.errors.iter().map(|e| format!("{e}")).collect();
-            anyhow::anyhow!("GLSL parse errors:\n{}", msgs.join("\n"))
+            let diagnostics: Vec<ShaderDiagnostic> = parse_errors
+                .errors
+                .iter()
+                .map(|e| {
+                    let loc = e.meta.location(glsl_source);
+                    let user_line = loc.line_number.saturating_sub(line_offset);
+                    ShaderDiagnostic {
+                        line: if user_line > 0 { Some(user_line) } else { None },
+                        column: Some(loc.line_position),
+                        message: format!("{}", e.kind),
+                    }
+                })
+                .collect();
+            anyhow::Error::new(ShaderDiagnostics { diagnostics })
         })?;
 
     // Validate
@@ -280,5 +370,69 @@ mod tests {
     fn test_validate_wgsl_invalid() {
         let result = validate_wgsl("this is not valid WGSL");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_glsl_diagnostics_have_line_numbers() {
+        // Line 1: #version 450
+        // Line 2: layout...
+        // Line 3: buffer...
+        // Line 4: user code starts → error here
+        let glsl = "#version 450\nlayout(local_size_x=1) in;\nlayout(std430, set=0, binding=0) buffer O { float d[]; } o;\nfloat sdf(vec3 p) { return UNDEFINED_SYMBOL; }\nvoid main() { o.d[0] = sdf(vec3(0.0)); }\n";
+        let result = glsl_to_wgsl(glsl);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let diags = err.downcast_ref::<ShaderDiagnostics>().unwrap();
+        assert!(!diags.diagnostics.is_empty(), "Should have diagnostics");
+        // The error should reference line 4 (where UNDEFINED_SYMBOL is)
+        let first = &diags.diagnostics[0];
+        assert!(first.line.is_some(), "Should have line number");
+    }
+
+    #[test]
+    fn test_glsl_diagnostics_with_offset_correction() {
+        // Simulate the preview wrapper: 3 preamble lines
+        let glsl = "#version 450\nlayout(local_size_x=1) in;\nlayout(std430, set=0, binding=0) buffer O { float d[]; } o;\nfloat sdf(vec3 p) { return UNDEFINED_SYMBOL; }\nvoid main() { o.d[0] = sdf(vec3(0.0)); }\n";
+        let result = glsl_to_wgsl_with_offset(glsl, 3);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let diags = err.downcast_ref::<ShaderDiagnostics>().unwrap();
+        let first = &diags.diagnostics[0];
+        // Line 4 in full source minus 3 offset = line 1 in user source
+        assert!(first.line.is_some());
+        assert!(
+            first.line.unwrap() <= 2,
+            "With offset=3, user line should be small; got {}",
+            first.line.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_wgsl_diagnostics_have_line_numbers() {
+        let bad_wgsl = "fn sdf(p: vec3<f32>) -> f32 {\n    return MISSING;\n}\n";
+        let result = validate_wgsl(bad_wgsl);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let diags = err.downcast_ref::<ShaderDiagnostics>().unwrap();
+        assert!(!diags.diagnostics.is_empty());
+        let first = &diags.diagnostics[0];
+        assert!(first.line.is_some(), "WGSL error should have line number");
+    }
+
+    #[test]
+    fn test_shader_diagnostic_display() {
+        let d = ShaderDiagnostic {
+            line: Some(5),
+            column: Some(10),
+            message: "unknown identifier".to_string(),
+        };
+        assert_eq!(d.to_string(), "L5: unknown identifier");
+
+        let d_no_line = ShaderDiagnostic {
+            line: None,
+            column: None,
+            message: "general error".to_string(),
+        };
+        assert_eq!(d_no_line.to_string(), "general error");
     }
 }
