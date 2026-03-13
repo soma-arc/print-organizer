@@ -193,6 +193,7 @@ impl MyApp {
             Err(e) => {
                 self.config_info = None;
                 self.config_error = Some(format!("{e:#}"));
+                self.stop_watching_shader();
             }
         }
         self.config_path = Some(path);
@@ -203,16 +204,23 @@ impl MyApp {
     /// Start watching the shader file for changes.
     /// Drops any previously active watcher.
     fn start_watching_shader(&mut self, shader_path: &std::path::Path) {
+        // Always drop the previous watcher first
+        self.stop_watching_shader();
+
         let (tx, rx) = mpsc::channel();
         let sender = std::sync::Mutex::new(tx);
         let watch_path = shader_path.to_path_buf();
+        let filter_path = watch_path.clone();
 
         let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             if let Ok(event) = res {
                 use notify::EventKind::*;
                 match event.kind {
                     Modify(_) | Create(_) | Remove(_) => {
-                        let _ = sender.lock().unwrap().send(());
+                        // Only trigger if the event involves the watched shader file
+                        if event.paths.iter().any(|p| p == &filter_path) {
+                            let _ = sender.lock().unwrap().send(());
+                        }
                     }
                     _ => {}
                 }
@@ -231,6 +239,8 @@ impl MyApp {
                     self.resolved_shader_path = Some(watch_path);
                     self.pending_reload = None;
                     log::info!("Watching shader: {}", shader_path.display());
+                } else {
+                    log::warn!("Failed to watch directory: {}", watch_dir.display());
                 }
             }
             Err(e) => {
