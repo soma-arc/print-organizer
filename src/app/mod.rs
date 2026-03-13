@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 use std::sync::mpsc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use eframe::{egui, wgpu};
+use notify::Watcher as _;
 
 mod bake;
 mod camera;
@@ -76,6 +77,16 @@ pub struct MyApp {
 
     /// Channel for file dialog results (path selected by user)
     file_rx: Option<mpsc::Receiver<PathBuf>>,
+
+    // --- shader hot-reload ---
+    /// File watcher for the current shader file
+    _watcher: Option<notify::RecommendedWatcher>,
+    /// Receives notifications from the file watcher
+    watcher_rx: Option<mpsc::Receiver<()>>,
+    /// Debounce: timestamp of last watcher event
+    pending_reload: Option<Instant>,
+    /// Resolved absolute path of the currently loaded shader file
+    resolved_shader_path: Option<PathBuf>,
 }
 
 impl MyApp {
@@ -125,6 +136,11 @@ impl MyApp {
             bake_status: BakeStatus::Idle,
             bake_rx: None,
             file_rx: None,
+
+            _watcher: None,
+            watcher_rx: None,
+            pending_reload: None,
+            resolved_shader_path: None,
         }
     }
 
@@ -160,6 +176,7 @@ impl MyApp {
                             self.preview_active = false;
                         }
                     }
+                    self.start_watching_shader(&shader_path);
                 } else {
                     // No shader specified — use built-in sphere
                     self.rebuild_preview_pipeline(
@@ -167,6 +184,7 @@ impl MyApp {
                         sdf_baker::shader_compose::ShaderLang::Wgsl,
                         sdf_baker::shader_compose::BUILTIN_SPHERE_SDF,
                     );
+                    self.stop_watching_shader();
                 }
 
                 self.config_info = Some(info);
@@ -179,6 +197,71 @@ impl MyApp {
         }
         self.config_path = Some(path);
         self.bake_status = BakeStatus::Idle;
+        self.needs_repaint = true;
+    }
+
+    /// Start watching the shader file for changes.
+    /// Drops any previously active watcher.
+    fn start_watching_shader(&mut self, shader_path: &std::path::Path) {
+        let (tx, rx) = mpsc::channel();
+        let sender = std::sync::Mutex::new(tx);
+        let watch_path = shader_path.to_path_buf();
+
+        let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+            if let Ok(event) = res {
+                use notify::EventKind::*;
+                match event.kind {
+                    Modify(_) | Create(_) | Remove(_) => {
+                        let _ = sender.lock().unwrap().send(());
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        match watcher {
+            Ok(mut w) => {
+                // Watch the parent directory to catch rename-based atomic saves
+                let watch_dir = watch_path.parent().unwrap_or(std::path::Path::new("."));
+                if w.watch(watch_dir, notify::RecursiveMode::NonRecursive)
+                    .is_ok()
+                {
+                    self._watcher = Some(w);
+                    self.watcher_rx = Some(rx);
+                    self.resolved_shader_path = Some(watch_path);
+                    self.pending_reload = None;
+                    log::info!("Watching shader: {}", shader_path.display());
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to create file watcher: {e}");
+            }
+        }
+    }
+
+    /// Stop watching the shader file.
+    fn stop_watching_shader(&mut self) {
+        self._watcher = None;
+        self.watcher_rx = None;
+        self.pending_reload = None;
+        self.resolved_shader_path = None;
+    }
+
+    /// Reload the shader from `resolved_shader_path` and rebuild the pipeline.
+    fn reload_shader(&mut self, device: &wgpu::Device) {
+        let Some(shader_path) = self.resolved_shader_path.clone() else {
+            return;
+        };
+        match sdf_baker::shader_compose::load_shader(&shader_path) {
+            Ok((lang, user_sdf)) => {
+                self.rebuild_preview_pipeline(device, lang, &user_sdf);
+                log::info!("Shader reloaded: {}", shader_path.display());
+            }
+            Err(e) => {
+                self.shader_error = Some(format!("{e:#}"));
+                self.preview_active = false;
+            }
+        }
         self.needs_repaint = true;
     }
 }
@@ -195,6 +278,24 @@ impl eframe::App for MyApp {
         // ---------------------------------------------------------------
         // Poll async channels
         // ---------------------------------------------------------------
+
+        // Shader hot-reload (debounced)
+        if let Some(rx) = &self.watcher_rx {
+            if rx.try_recv().is_ok() {
+                // Drain any additional queued events
+                while rx.try_recv().is_ok() {}
+                self.pending_reload = Some(Instant::now());
+                ctx.request_repaint_after(Duration::from_millis(200));
+            }
+        }
+        if let Some(t) = self.pending_reload {
+            if t.elapsed() >= Duration::from_millis(200) {
+                self.pending_reload = None;
+                if let Some(ref device) = device {
+                    self.reload_shader(device);
+                }
+            }
+        }
 
         // File dialog result
         if let Some(rx) = &self.file_rx {
