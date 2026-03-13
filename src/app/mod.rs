@@ -88,6 +88,8 @@ pub struct MyApp {
     pending_reload: Option<Instant>,
     /// Resolved absolute path of the currently loaded shader file
     resolved_shader_path: Option<PathBuf>,
+    /// egui context for requesting repaints from background threads
+    egui_ctx: Option<egui::Context>,
 }
 
 impl MyApp {
@@ -142,6 +144,7 @@ impl MyApp {
             watcher_rx: None,
             pending_reload: None,
             resolved_shader_path: None,
+            egui_ctx: None,
         }
     }
 
@@ -211,6 +214,7 @@ impl MyApp {
         let sender = std::sync::Mutex::new(tx);
         let watch_path = shader_path.to_path_buf();
         let filter_path = watch_path.clone();
+        let repaint_ctx = self.egui_ctx.clone();
 
         let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             if let Ok(event) = res {
@@ -220,6 +224,10 @@ impl MyApp {
                         // Only trigger if the event involves the watched shader file
                         if event.paths.iter().any(|p| p == &filter_path) {
                             let _ = sender.lock().unwrap().send(());
+                            // Wake the event loop even when the window is unfocused
+                            if let Some(ref ctx) = repaint_ctx {
+                                ctx.request_repaint();
+                            }
                         }
                     }
                     _ => {}
@@ -292,6 +300,11 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.needs_repaint = false;
+
+        // Store context so background threads (e.g. file watcher) can wake us
+        if self.egui_ctx.is_none() {
+            self.egui_ctx = Some(ctx.clone());
+        }
 
         // ---------------------------------------------------------------
         // Grab device reference for pipeline operations
