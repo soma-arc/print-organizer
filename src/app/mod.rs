@@ -539,6 +539,18 @@ impl eframe::App for MyApp {
                             ui.colored_label(egui::Color32::RED, format!("❌ {msg}"));
                         }
                     }
+
+                    // --- Shader errors ---
+                    if !self.shader_errors.is_empty() {
+                        ui.separator();
+                        ui.colored_label(
+                            egui::Color32::YELLOW,
+                            format!("⚠ Shader errors ({})", self.shader_errors.len()),
+                        );
+                        for diag in &self.shader_errors {
+                            ui.colored_label(egui::Color32::YELLOW, format!("  {diag}"));
+                        }
+                    }
                 }
             });
 
@@ -546,17 +558,6 @@ impl eframe::App for MyApp {
         // Central panel — 3D preview
         // ---------------------------------------------------------------
         egui::CentralPanel::default().show(ctx, |ui| {
-            // --- shader error banner ---
-            if !self.shader_errors.is_empty() {
-                ui.colored_label(
-                    egui::Color32::YELLOW,
-                    format!("⚠ Shader errors ({})", self.shader_errors.len()),
-                );
-                for diag in &self.shader_errors {
-                    ui.colored_label(egui::Color32::YELLOW, format!("  {diag}"));
-                }
-            }
-
             let available = ui.available_size();
             let new_w = (available.x as u32).clamp(64, 4096);
             let new_h = (available.y as u32).clamp(64, 4096);
