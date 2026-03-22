@@ -14,6 +14,9 @@ use crate::types::BakeConfig;
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct ConfigFile {
+    /// Schema version. None or absent = v1. 2 = v2 (with presets).
+    pub version: Option<u32>,
+
     /// Path to SDF shader file (resolved relative to config file).
     pub shader: Option<String>,
     /// Output directory (resolved relative to config file directory).
@@ -27,6 +30,69 @@ pub struct ConfigFile {
     pub mesh: MeshParams,
     /// Genmesh invocation parameters.
     pub genmesh: GenmeshConfig,
+
+    /// Preset overrides (v2).
+    pub presets: Option<Vec<PresetEntry>>,
+}
+
+/// A single preset entry. All fields except `name` are optional;
+/// only the fields present will override the base config.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default)]
+pub struct PresetEntry {
+    /// Preset display name (required).
+    pub name: String,
+
+    pub shader: Option<String>,
+    pub out: Option<String>,
+    pub grid: Option<GridConfig>,
+    pub bake: Option<BakeParams>,
+    pub mesh: Option<MeshParams>,
+    pub genmesh: Option<GenmeshConfig>,
+}
+
+/// Merge a preset's overrides onto a base config.
+///
+/// For each `Option` field: if the preset has `Some`, it replaces the base;
+/// otherwise the base value is inherited. Sub-structs are merged at field level.
+pub fn merge_preset(base: &ConfigFile, preset: &PresetEntry) -> ConfigFile {
+    ConfigFile {
+        version: base.version,
+        shader: preset.shader.clone().or_else(|| base.shader.clone()),
+        out: preset.out.clone().or_else(|| base.out.clone()),
+        grid: match &preset.grid {
+            Some(pg) => GridConfig {
+                aabb_min: pg.aabb_min.or(base.grid.aabb_min),
+                aabb_size: pg.aabb_size.or(base.grid.aabb_size),
+                voxel_size: pg.voxel_size.or(base.grid.voxel_size),
+                brick_size: pg.brick_size.or(base.grid.brick_size),
+            },
+            None => base.grid.clone(),
+        },
+        bake: match &preset.bake {
+            Some(pb) => BakeParams {
+                half_width: pb.half_width.or(base.bake.half_width),
+                dtype: pb.dtype.clone().or_else(|| base.bake.dtype.clone()),
+            },
+            None => base.bake.clone(),
+        },
+        mesh: match &preset.mesh {
+            Some(pm) => MeshParams {
+                iso: pm.iso.or(base.mesh.iso),
+                adaptivity: pm.adaptivity.or(base.mesh.adaptivity),
+            },
+            None => base.mesh.clone(),
+        },
+        genmesh: match &preset.genmesh {
+            Some(pg) => GenmeshConfig {
+                path: pg.path.clone().or_else(|| base.genmesh.path.clone()),
+                write_vdb: pg.write_vdb.or(base.genmesh.write_vdb),
+                skip: pg.skip.or(base.genmesh.skip),
+            },
+            None => base.genmesh.clone(),
+        },
+        presets: None, // presets are not nested
+    }
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
@@ -508,5 +574,147 @@ mod tests {
         let explicit = PathBuf::from("/custom/path/genmesh");
         let result = resolve_genmesh_path(Some(explicit.clone()));
         assert_eq!(result, explicit);
+    }
+
+    // ---- preset / v2 tests ----
+
+    #[test]
+    fn test_load_v1_no_presets() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("v1.json");
+        std::fs::write(&p, r#"{ "shader": "sdf.wgsl" }"#).unwrap();
+        let cfg = load_config(&p).unwrap();
+        assert!(cfg.version.is_none());
+        assert!(cfg.presets.is_none());
+    }
+
+    #[test]
+    fn test_load_v2_with_presets() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("v2.json");
+        std::fs::write(
+            &p,
+            r#"{
+                "version": 2,
+                "shader": "sdf.wgsl",
+                "grid": { "aabb_size": [64, 64, 64], "voxel_size": 1.0 },
+                "presets": [
+                    { "name": "low", "grid": { "voxel_size": 2.0 } },
+                    { "name": "high", "grid": { "voxel_size": 0.5 }, "mesh": { "adaptivity": 0.3 } }
+                ]
+            }"#,
+        )
+        .unwrap();
+        let cfg = load_config(&p).unwrap();
+        assert_eq!(cfg.version, Some(2));
+        let presets = cfg.presets.as_ref().unwrap();
+        assert_eq!(presets.len(), 2);
+        assert_eq!(presets[0].name, "low");
+        assert_eq!(presets[0].grid.as_ref().unwrap().voxel_size, Some(2.0));
+        assert!(presets[0].mesh.is_none());
+        assert_eq!(presets[1].name, "high");
+        assert_eq!(
+            presets[1].mesh.as_ref().unwrap().adaptivity,
+            Some(0.3)
+        );
+    }
+
+    #[test]
+    fn test_merge_preset_overrides() {
+        let base = ConfigFile {
+            shader: Some("sdf.wgsl".into()),
+            out: Some("output".into()),
+            grid: GridConfig {
+                aabb_min: Some([0.0, 0.0, 0.0]),
+                aabb_size: Some([64.0, 64.0, 64.0]),
+                voxel_size: Some(1.0),
+                brick_size: Some(64),
+            },
+            mesh: MeshParams {
+                iso: Some(0.0),
+                adaptivity: Some(0.0),
+            },
+            ..Default::default()
+        };
+
+        let preset = PresetEntry {
+            name: "high-res".into(),
+            grid: Some(GridConfig {
+                voxel_size: Some(0.2),
+                ..Default::default()
+            }),
+            mesh: Some(MeshParams {
+                adaptivity: Some(0.5),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let merged = merge_preset(&base, &preset);
+        // Overridden fields
+        assert_eq!(merged.grid.voxel_size, Some(0.2));
+        assert_eq!(merged.mesh.adaptivity, Some(0.5));
+        // Inherited fields
+        assert_eq!(merged.shader.as_deref(), Some("sdf.wgsl"));
+        assert_eq!(merged.out.as_deref(), Some("output"));
+        assert_eq!(merged.grid.aabb_size, Some([64.0, 64.0, 64.0]));
+        assert_eq!(merged.grid.aabb_min, Some([0.0, 0.0, 0.0]));
+        assert_eq!(merged.grid.brick_size, Some(64));
+        assert_eq!(merged.mesh.iso, Some(0.0));
+    }
+
+    #[test]
+    fn test_merge_preset_inherits_all_when_empty() {
+        let base = ConfigFile {
+            shader: Some("base.wgsl".into()),
+            grid: GridConfig {
+                aabb_size: Some([128.0, 128.0, 128.0]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let preset = PresetEntry {
+            name: "empty".into(),
+            ..Default::default()
+        };
+
+        let merged = merge_preset(&base, &preset);
+        assert_eq!(merged.shader.as_deref(), Some("base.wgsl"));
+        assert_eq!(merged.grid.aabb_size, Some([128.0, 128.0, 128.0]));
+    }
+
+    #[test]
+    fn test_merge_preset_shader_override() {
+        let base = ConfigFile {
+            shader: Some("base.wgsl".into()),
+            ..Default::default()
+        };
+
+        let preset = PresetEntry {
+            name: "alt".into(),
+            shader: Some("alt.wgsl".into()),
+            ..Default::default()
+        };
+
+        let merged = merge_preset(&base, &preset);
+        assert_eq!(merged.shader.as_deref(), Some("alt.wgsl"));
+    }
+
+    #[test]
+    fn test_merge_preset_out_override() {
+        let base = ConfigFile {
+            out: Some("base_out".into()),
+            ..Default::default()
+        };
+
+        let preset = PresetEntry {
+            name: "custom".into(),
+            out: Some("preset_out".into()),
+            ..Default::default()
+        };
+
+        let merged = merge_preset(&base, &preset);
+        assert_eq!(merged.out.as_deref(), Some("preset_out"));
     }
 }

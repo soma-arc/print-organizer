@@ -1,11 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/print-organizer/project.v1.schema.json",
-  "title": "project.json v1",
-  "description": "SDF作品のプロジェクト設定ファイル (project.json)。全フィールドはオプション。",
+  "title": "project.json v1/v2",
+  "description": "SDF作品のプロジェクト設定ファイル (project.json)。全フィールドはオプション。v2 では presets 配列を追加。",
   "type": "object",
   "additionalProperties": true,
   "properties": {
+    "version": {
+      "type": "integer",
+      "description": "スキーマバージョン。省略時は v1。2 = v2 (プリセット対応)。"
+    },
     "shader": {
       "type": "string",
       "description": "SDFシェーダファイルへのパス (project.json からの相対パス)。省略時は built-in sphere SDF。"
@@ -105,6 +109,98 @@
           "type": "boolean",
           "default": false,
           "description": "genmesh 呼び出しをスキップするか"
+        }
+      }
+    },
+    "presets": {
+      "type": "array",
+      "description": "プリセット配列 (v2)。各エントリはベース設定に対する差分オーバーライド。",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "プリセット名"
+          },
+          "shader": {
+            "type": "string",
+            "description": "シェーダパスの上書き"
+          },
+          "out": {
+            "type": "string",
+            "description": "出力先ディレクトリの上書き"
+          },
+          "grid": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "aabb_min": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "aabb_size": {
+                "type": "array",
+                "items": { "type": "number", "exclusiveMinimum": 0 },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "voxel_size": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "brick_size": {
+                "type": "integer",
+                "enum": [32, 64, 128]
+              }
+            }
+          },
+          "bake": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "half_width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "dtype": {
+                "type": "string",
+                "enum": ["f32", "f16"]
+              }
+            }
+          },
+          "mesh": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "iso": {
+                "type": "number"
+              },
+              "adaptivity": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
+              }
+            }
+          },
+          "genmesh": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "write_vdb": {
+                "type": "boolean"
+              },
+              "skip": {
+                "type": "boolean"
+              }
+            }
+          }
         }
       }
     }
