@@ -71,6 +71,8 @@ pub struct MyApp {
     config_dir: Option<PathBuf>,
     config_info: Option<ConfigInfo>,
     config_error: Option<String>,
+    /// Currently selected preset index (None = base config).
+    selected_preset: Option<usize>,
 
     out_dir_override: String,
     force_overwrite: bool,
@@ -138,6 +140,7 @@ impl MyApp {
             config_dir: None,
             config_info: None,
             config_error: None,
+            selected_preset: None,
             out_dir_override: String::new(),
             force_overwrite: true,
             bake_status: BakeStatus::Idle,
@@ -198,12 +201,14 @@ impl MyApp {
                 self.config_dir = Some(cfg_dir);
                 self.config_info = Some(info);
                 self.config_error = None;
+                self.selected_preset = None;
             }
             Err(e) => {
                 self.config = None;
                 self.config_dir = None;
                 self.config_info = None;
                 self.config_error = Some(format!("{e:#}"));
+                self.selected_preset = None;
                 self.stop_watching_shader();
             }
         }
@@ -288,6 +293,81 @@ impl MyApp {
             }
         }
         self.needs_repaint = true;
+    }
+
+    /// Switch preset selection and update config_info / preview accordingly.
+    fn apply_preset(&mut self, preset_index: Option<usize>, device: &wgpu::Device) {
+        let Some(base) = &self.config else { return };
+        let Some(cfg_dir) = &self.config_dir else { return };
+
+        let effective = match preset_index {
+            Some(idx) => {
+                let presets = match &base.presets {
+                    Some(p) if idx < p.len() => p,
+                    _ => return,
+                };
+                sdf_baker::config::merge_preset(base, &presets[idx])
+            }
+            None => base.clone(),
+        };
+
+        let old_info = self.config_info.as_ref();
+        let new_info = ConfigInfo::from_config(&effective, cfg_dir);
+
+        // Check if shader changed
+        let shader_changed = old_info.map(|i| &i.shader) != Some(&new_info.shader);
+        // Check if AABB changed
+        let aabb_changed = old_info.map(|i| (i.aabb_min, i.aabb_size))
+            != Some((new_info.aabb_min, new_info.aabb_size));
+
+        // Update output directory from effective config
+        self.out_dir_override = effective
+            .out
+            .as_ref()
+            .map(|out| cfg_dir.join(out).display().to_string())
+            .unwrap_or_default();
+
+        if aabb_changed {
+            self.camera = OrbitCamera::from_aabb(new_info.aabb_min, new_info.aabb_size);
+        }
+
+        if shader_changed {
+            if let Some(ref shader_rel) = effective.shader {
+                let shader_path = cfg_dir.join(shader_rel);
+                match sdf_baker::shader_compose::load_shader(&shader_path) {
+                    Ok((lang, user_sdf)) => {
+                        self.rebuild_preview_pipeline(device, lang, &user_sdf);
+                    }
+                    Err(e) => {
+                        self.set_shader_error(e);
+                    }
+                }
+                self.start_watching_shader(&shader_path);
+            } else {
+                self.rebuild_preview_pipeline(
+                    device,
+                    sdf_baker::shader_compose::ShaderLang::Wgsl,
+                    sdf_baker::shader_compose::BUILTIN_SPHERE_SDF,
+                );
+                self.stop_watching_shader();
+            }
+        }
+
+        self.config_info = Some(new_info);
+        self.selected_preset = preset_index;
+        self.needs_repaint = true;
+    }
+
+    /// Get the effective (merged) ConfigFile for the current selection.
+    fn effective_config(&self) -> Option<sdf_baker::config::ConfigFile> {
+        let base = self.config.as_ref()?;
+        match self.selected_preset {
+            Some(idx) => {
+                let presets = base.presets.as_ref()?;
+                Some(sdf_baker::config::merge_preset(base, presets.get(idx)?))
+            }
+            None => Some(base.clone()),
+        }
     }
 
     /// Extract structured diagnostics from an anyhow error and store them.
@@ -378,6 +458,7 @@ impl eframe::App for MyApp {
         // ---------------------------------------------------------------
         // Side panel — config & bake controls
         // ---------------------------------------------------------------
+        let prev_preset = self.selected_preset;
         egui::SidePanel::left("bake_panel")
             .default_width(340.0)
             .show(ctx, |ui| {
@@ -400,6 +481,50 @@ impl eframe::App for MyApp {
 
                 if let Some(ref path) = self.config_path {
                     ui.label(format!("📄 {}", path.display()));
+                }
+
+                // --- Preset selector (v2 only) ---
+                if let Some(ref cfg) = self.config {
+                    if let Some(ref presets) = cfg.presets {
+                        if !presets.is_empty() {
+                            let current_label = match self.selected_preset {
+                                Some(idx) => presets
+                                    .get(idx)
+                                    .map(|p| p.name.as_str())
+                                    .unwrap_or("(base)"),
+                                None => "(base)",
+                            };
+                            ui.horizontal(|ui| {
+                                ui.label("Preset:");
+                                egui::ComboBox::from_id_salt("preset_selector")
+                                    .selected_text(current_label)
+                                    .show_ui(ui, |ui| {
+                                        if ui
+                                            .selectable_label(
+                                                self.selected_preset.is_none(),
+                                                "(base)",
+                                            )
+                                            .clicked()
+                                            && self.selected_preset.is_some()
+                                        {
+                                            self.selected_preset = None;
+                                        }
+                                        for (i, preset) in presets.iter().enumerate() {
+                                            if ui
+                                                .selectable_label(
+                                                    self.selected_preset == Some(i),
+                                                    &preset.name,
+                                                )
+                                                .clicked()
+                                                && self.selected_preset != Some(i)
+                                            {
+                                                self.selected_preset = Some(i);
+                                            }
+                                        }
+                                    });
+                            });
+                        }
+                    }
                 }
 
                 // --- Config error ---
@@ -509,7 +634,7 @@ impl eframe::App for MyApp {
 
                     ui.add_enabled_ui(can_bake, |ui| {
                         if ui.button("🔨 Bake & Export").clicked() {
-                            let config = self.config.clone().unwrap();
+                            let config = self.effective_config().unwrap();
                             let config_dir = self.config_dir.clone().unwrap();
                             let out_dir = PathBuf::from(&self.out_dir_override);
                             let force = self.force_overwrite;
@@ -562,6 +687,13 @@ impl eframe::App for MyApp {
                     }
                 }
             });
+
+        // Apply preset change if selection changed during UI draw
+        if self.selected_preset != prev_preset {
+            if let Some(ref device) = device {
+                self.apply_preset(self.selected_preset, device);
+            }
+        }
 
         // ---------------------------------------------------------------
         // Central panel — 3D preview
