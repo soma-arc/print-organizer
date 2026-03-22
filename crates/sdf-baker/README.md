@@ -45,7 +45,7 @@ cargo test -p sdf-baker
 ```bash
 cargo run -p sdf-baker -- \
   --out output/ \
-  --genmesh-path tools/genmesh/build/Debug/genmesh.exe \
+  --genmesh-path tools/genmesh/build/RelWithDebInfo/genmesh.exe \
   --force
 ```
 
@@ -87,7 +87,7 @@ cargo run -p sdf-baker -- --config examples/gyroid/gyroid.json --out out/gyroid 
         "brick_size": 64
     },
     "genmesh": {
-        "path": "tools/genmesh/build/Debug/genmesh.exe",
+        "path": "tools/genmesh/build/RelWithDebInfo/genmesh.exe",
         "write_vdb": true
     }
 }

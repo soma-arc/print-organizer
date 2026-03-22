@@ -55,7 +55,7 @@ cmake --build --preset default
 # 内蔵球 SDF でパイプライン全体を実行
 cargo run -p sdf-baker -- \
   --out output/ \
-  --genmesh-path tools/genmesh/build/Debug/genmesh.exe \
+  --genmesh-path tools/genmesh/build/RelWithDebInfo/genmesh.exe \
   --force
 
 # 外部 WGSL シェーダを指定
@@ -63,7 +63,7 @@ cargo run -p sdf-baker -- \
   --shader my_sdf.wgsl \
   --out output/ \
   --aabb-size 128,128,128 \
-  --genmesh-path tools/genmesh/build/Debug/genmesh.exe
+  --genmesh-path tools/genmesh/build/RelWithDebInfo/genmesh.exe
 
 # ブリック書き出しのみ (genmesh スキップ)
 cargo run -p sdf-baker -- --out output/ --skip-genmesh --force

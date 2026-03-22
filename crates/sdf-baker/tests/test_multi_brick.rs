@@ -17,6 +17,7 @@ fn find_genmesh() -> Option<PathBuf> {
         }
     }
     let candidates = [
+        "tools/genmesh/build/RelWithDebInfo/genmesh.exe",
         "tools/genmesh/build/Debug/genmesh.exe",
         "tools/genmesh/build/Release/genmesh.exe",
         "tools/genmesh/build/genmesh.exe",

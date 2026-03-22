@@ -1,0 +1,2 @@
+[env]
+PRINT_ORGANIZER_GENMESH = { value = "tools/genmesh/build/RelWithDebInfo/genmesh.exe", relative = true }

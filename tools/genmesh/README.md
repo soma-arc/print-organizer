@@ -54,7 +54,7 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-ビルド成果物は `build/Debug/genmesh.exe`（または `build/RelWithDebInfo/genmesh.exe`）に出力される。
+ビルド成果物は `build/RelWithDebInfo/genmesh.exe`（default プリセット）または `build/Debug/genmesh.exe`（debug プリセット）に出力される。
 
 ## 使い方
 
