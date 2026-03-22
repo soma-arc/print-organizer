@@ -15,6 +15,20 @@ use bake::{BakeResult, spawn_bake};
 use camera::OrbitCamera;
 use config_info::ConfigInfo;
 
+/// Convert a preset name into a filesystem-safe slug.
+fn slug(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .to_ascii_lowercase()
+}
+
 // ---------------------------------------------------------------------------
 // BakeStatus — UI state machine (kept in mod.rs)
 // ---------------------------------------------------------------------------
@@ -634,16 +648,44 @@ impl eframe::App for MyApp {
 
                     ui.add_enabled_ui(can_bake, |ui| {
                         if ui.button("🔨 Bake & Export").clicked() {
-                            let config = self.effective_config().unwrap();
+                            let effective = self.effective_config().unwrap();
                             let config_dir = self.config_dir.clone().unwrap();
-                            let out_dir = PathBuf::from(&self.out_dir_override);
+                            let base_out = PathBuf::from(&self.out_dir_override);
+
+                            // Determine output directory based on preset selection
+                            let out_dir = if let Some(ref base_cfg) = self.config {
+                                let has_presets = base_cfg
+                                    .presets
+                                    .as_ref()
+                                    .is_some_and(|p| !p.is_empty());
+                                if has_presets {
+                                    if let Some(idx) = self.selected_preset {
+                                        let preset = &base_cfg.presets.as_ref().unwrap()[idx];
+                                        if preset.out.is_some() {
+                                            // Preset has explicit out — already in
+                                            // out_dir_override
+                                            base_out
+                                        } else {
+                                            base_out.join(slug(&preset.name))
+                                        }
+                                    } else {
+                                        base_out.join("default")
+                                    }
+                                } else {
+                                    // v1: direct output
+                                    base_out
+                                }
+                            } else {
+                                base_out
+                            };
+
                             let force = self.force_overwrite;
 
                             let (tx, rx) = mpsc::channel();
                             self.bake_rx = Some(rx);
                             self.bake_status = BakeStatus::Running;
 
-                            spawn_bake(config, config_dir, out_dir, force, tx);
+                            spawn_bake(effective, config_dir, out_dir, force, tx);
                         }
                     });
 
