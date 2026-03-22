@@ -7,8 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # MSVC: /bigobj needed for OpenVDB heavy template instantiations (VolumeToMesh)
+#        /utf-8 to treat source files as UTF-8 (suppress C4819)
 if(MSVC)
-    add_compile_options(/bigobj)
+    add_compile_options(/bigobj /utf-8)
 endif()
 
 find_package(OpenVDB CONFIG REQUIRED)
