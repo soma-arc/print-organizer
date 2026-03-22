@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use sdf_baker::config::ConfigFile;
+
 /// Result sent back from the bake thread via channel.
 #[derive(Debug)]
 pub enum BakeResult {
@@ -15,21 +17,27 @@ pub enum BakeResult {
 
 /// Run the full sdf-baker pipeline on a background thread.
 pub(super) fn spawn_bake(
-    config_path: PathBuf,
+    config: ConfigFile,
+    config_dir: PathBuf,
     out_dir: PathBuf,
     force: bool,
     tx: std::sync::mpsc::Sender<BakeResult>,
 ) {
     std::thread::spawn(move || {
-        let result = run_bake_pipeline(&config_path, &out_dir, force);
+        let result = run_bake_pipeline(&config, &config_dir, &out_dir, force);
         let _ = tx.send(result);
     });
 }
 
-fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> BakeResult {
+fn run_bake_pipeline(
+    cfg: &ConfigFile,
+    cfg_dir: &PathBuf,
+    out_dir: &PathBuf,
+    force: bool,
+) -> BakeResult {
     use sdf_baker::bricks_writer::{write_bricks, write_manifest};
     use sdf_baker::compute::{bake_all_bricks, create_compute_pipeline};
-    use sdf_baker::config::{load_config, resolve_genmesh_path};
+    use sdf_baker::config::resolve_genmesh_path;
     use sdf_baker::genmesh_runner::{GenmeshRunConfig, run_genmesh};
     use sdf_baker::gpu::init_gpu;
     use sdf_baker::shader_compose::{BUILTIN_SPHERE_SDF, ShaderLang, compose_shader, load_shader};
@@ -37,18 +45,7 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
 
     let start = Instant::now();
 
-    // 1. Load config file
-    let cfg = match load_config(config_path) {
-        Ok(c) => c,
-        Err(e) => return BakeResult::Error(format!("Config load failed: {e:#}")),
-    };
-
-    let cfg_dir = config_path
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .to_path_buf();
-
-    // 2. Resolve parameters from config (all fields optional, use defaults)
+    // Resolve parameters from config (all fields optional, use defaults)
     let aabb_min = cfg.grid.aabb_min.unwrap_or([0.0, 0.0, 0.0]);
     let aabb_size = cfg.grid.aabb_size.unwrap_or([64.0, 64.0, 64.0]);
     let voxel_size = cfg.grid.voxel_size.unwrap_or(1.0);
@@ -65,7 +62,7 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
         aabb_min, aabb_size, voxel_size, brick_size, half_width, iso, adaptivity, dtype,
     );
 
-    // 3. Resolve shader path
+    // Resolve shader path
     let (lang, user_sdf) = if let Some(ref shader_rel) = cfg.shader {
         let shader_path = cfg_dir.join(shader_rel);
         match load_shader(&shader_path) {
@@ -76,7 +73,7 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
         (ShaderLang::Wgsl, BUILTIN_SPHERE_SDF.to_string())
     };
 
-    // 4. Prepare output directory
+    // Prepare output directory
     if out_dir.exists() && !force {
         return BakeResult::Error(format!(
             "Output directory already exists: {}. Enable 'Force overwrite'.",
@@ -87,13 +84,13 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
         return BakeResult::Error(format!("Failed to create output dir: {e}"));
     }
 
-    // 5. GPU init
+    // GPU init
     let ctx = match init_gpu() {
         Ok(c) => c,
         Err(e) => return BakeResult::Error(format!("GPU init failed: {e:#}")),
     };
 
-    // 6. Compose shader & create pipeline
+    // Compose shader & create pipeline
     let composed = match compose_shader(lang, &user_sdf) {
         Ok(c) => c,
         Err(e) => return BakeResult::Error(format!("Shader compile failed: {e:#}")),
@@ -104,13 +101,13 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
             Err(e) => return BakeResult::Error(format!("Pipeline creation failed: {e:#}")),
         };
 
-    // 7. Bake all bricks
+    // Bake all bricks
     let bricks = match bake_all_bricks(&ctx, &pipeline, &layout, &bake_config) {
         Ok(b) => b,
         Err(e) => return BakeResult::Error(format!("Bake failed: {e:#}")),
     };
 
-    // 8. Write output
+    // Write output
     if let Err(e) = write_manifest(out_dir, &bake_config) {
         return BakeResult::Error(format!("Write manifest failed: {e:#}"));
     }
@@ -118,7 +115,7 @@ fn run_bake_pipeline(config_path: &PathBuf, out_dir: &PathBuf, force: bool) -> B
         return BakeResult::Error(format!("Write bricks failed: {e:#}"));
     }
 
-    // 9. Run genmesh
+    // Run genmesh
     let mut triangles = None;
     let mut vertices = None;
 

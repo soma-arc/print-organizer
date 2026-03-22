@@ -67,6 +67,8 @@ pub struct MyApp {
 
     // --- sdf-baker GUI state ---
     config_path: Option<PathBuf>,
+    config: Option<sdf_baker::config::ConfigFile>,
+    config_dir: Option<PathBuf>,
     config_info: Option<ConfigInfo>,
     config_error: Option<String>,
 
@@ -132,6 +134,8 @@ impl MyApp {
             clip_aabb: true,
 
             config_path: None,
+            config: None,
+            config_dir: None,
             config_info: None,
             config_error: None,
             out_dir_override: String::new(),
@@ -190,10 +194,14 @@ impl MyApp {
                     self.stop_watching_shader();
                 }
 
+                self.config = Some(cfg);
+                self.config_dir = Some(cfg_dir);
                 self.config_info = Some(info);
                 self.config_error = None;
             }
             Err(e) => {
+                self.config = None;
+                self.config_dir = None;
                 self.config_info = None;
                 self.config_error = Some(format!("{e:#}"));
                 self.stop_watching_shader();
@@ -501,7 +509,8 @@ impl eframe::App for MyApp {
 
                     ui.add_enabled_ui(can_bake, |ui| {
                         if ui.button("🔨 Bake & Export").clicked() {
-                            let config_path = self.config_path.clone().unwrap();
+                            let config = self.config.clone().unwrap();
+                            let config_dir = self.config_dir.clone().unwrap();
                             let out_dir = PathBuf::from(&self.out_dir_override);
                             let force = self.force_overwrite;
 
@@ -509,7 +518,7 @@ impl eframe::App for MyApp {
                             self.bake_rx = Some(rx);
                             self.bake_status = BakeStatus::Running;
 
-                            spawn_bake(config_path, out_dir, force, tx);
+                            spawn_bake(config, config_dir, out_dir, force, tx);
                         }
                     });
 

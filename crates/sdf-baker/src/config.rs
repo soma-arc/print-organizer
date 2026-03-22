@@ -11,7 +11,7 @@ use crate::cli::Cli;
 use crate::types::BakeConfig;
 
 /// Top-level config file structure. All fields are optional.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct ConfigFile {
     /// Path to SDF shader file (resolved relative to config file).
@@ -29,7 +29,7 @@ pub struct ConfigFile {
     pub genmesh: GenmeshConfig,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct GridConfig {
     pub aabb_min: Option<[f32; 3]>,
@@ -38,21 +38,21 @@ pub struct GridConfig {
     pub brick_size: Option<u32>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct BakeParams {
     pub half_width: Option<u32>,
     pub dtype: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct MeshParams {
     pub iso: Option<f32>,
     pub adaptivity: Option<f32>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 pub struct GenmeshConfig {
     pub path: Option<String>,
