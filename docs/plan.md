@@ -326,6 +326,97 @@
   - パネルリサイズ時にプレビュー解像度が追従する
   - JSON 未読み込み時はプレビュー非表示（空のパネル）
 
+### Task M0: GUI config 保持リファクタリング（プリセット前段）
+
+- 目的
+  - 現在 GUI は JSON から表示用の `ConfigInfo` を作るだけで、`ConfigFile` 自体を保持していない。Bake 時にディスクから再読み込みしている。この構造ではプリセット切替・GUI からのパラメータ編集・Bake への反映ができないため、先にデータフローを改善する
+- 現状の問題
+  - `ConfigFile` は `load_config_file()` 内のローカル変数として消費され、`MyApp` には残らない
+  - `ConfigInfo` は表示専用（read-only）で、Bake パイプラインはこれを使わない
+  - `spawn_bake()` は `config_path: PathBuf` のみ受け取り、JSON をディスクから再パースする
+  - デフォルト値の `.unwrap_or()` が `ConfigInfo::from_config()` と `run_bake_pipeline()` の2箇所に重複している
+- 変更内容
+  1. `ConfigFile` に `Clone` を derive
+  2. `MyApp` に `config: Option<ConfigFile>` フィールドを追加し、ロード時に保持する
+  3. `ConfigInfo` を `config` から都度 derive する形に統一（計算ロジックの SSOT 化）
+  4. `spawn_bake()` のシグネチャを `ConfigFile` + `config_dir: PathBuf` 受け取りに変更し、ディスク再読み込みを廃止
+  5. デフォルト値適用を一箇所に集約（`ConfigFile` → 解決済みパラメータの変換関数）
+- Done when
+  - 既存の動作（JSON ロード→表示→Bake）が変わらず動く
+  - `MyApp.config` に `ConfigFile` が保持され、Bake がそこから値を取得する
+  - ディスク再読み込みが廃止されている
+
+### Task M1: プリセットデータ構造と JSON パース
+
+- 目的
+  - project.json v2 のプリセット配列をパースし、ベースとの差分マージを行えるようにする
+- 仕様参照
+  - [docs/spec/project-json.md §2](spec/project-json.md)
+- 変更内容
+  1. `ConfigFile` に `version: Option<u32>` と `presets: Option<Vec<PresetEntry>>` を追加
+  2. `PresetEntry` 構造体: `name: String` + 各セクション（`grid`, `bake`, `mesh`, `genmesh`, `out`, `shader`）をすべて `Option` で持つ
+  3. マージ関数 `merge_preset(base: &ConfigFile, preset: &PresetEntry) -> ConfigFile`
+     - `Option` レベルでマージ: プリセットの `Some` のみベースを上書き、`None` はベースを継承
+     - `.unwrap_or()` デフォルト適用はマージ後に一度だけ行う
+  4. JSON Schema v2 更新: `presets` 配列 + `version` フィールド追加
+  5. `version` 未設定の JSON は v1 として扱う（後方互換）
+- Done when
+  - v1 JSON（presets なし）が従来通りパースできる
+  - v2 JSON（presets あり）がパースでき、`merge_preset()` で正しいマージ結果が得られる
+  - マージのユニットテスト: ベースの値をプリセットが上書き / プリセット省略でベース継承 / ネスト（grid 内の一部フィールドのみ上書き）
+
+### Task M2: GUI プリセット選択 UI
+
+- 目的
+  - サイドパネルにプリセット選択ドロップダウンを追加し、選択に応じてパラメータ表示・プレビューを切り替える
+- 変更内容
+  1. `MyApp` に `selected_preset: Option<usize>` を追加（`None` = ベース設定）
+  2. サイドパネル上部（JSON パス表示の直下）にドロップダウン: "(base)" + 各プリセット名
+  3. 選択変更時:
+     - `merge_preset()` でマージ済み `ConfigFile` を計算
+     - `ConfigInfo` を再 derive → パラメータ表示更新
+     - AABB が変わった場合はカメラをリセット（`OrbitCamera::from_aabb()`）
+     - `shader` が変わった場合のみパイプライン再構築
+     - `out` がプリセットで指定されていれば `out_dir_override` を更新
+  4. presets が空または未定義の場合、ドロップダウンは非表示
+- プレビュー連動の判定
+  - AABB 変更 → uniform 更新（次フレームで自動反映）+ カメラリセット。パイプライン再構築は不要
+  - shader 変更 → パイプライン再構築 + カメラリセット
+  - mesh/bake パラメータ変更 → 表示更新のみ（プレビューに影響なし）
+- Done when
+  - v2 JSON を開くとドロップダウンにプリセット一覧が表示される
+  - プリセット切替でパラメータ表示が更新される
+  - AABB の異なるプリセットに切り替えるとカメラがリセットされ、プレビューの AABB が変わる
+  - v1 JSON ではドロップダウンが表示されない
+
+### Task M3: プリセット付き Bake
+
+- 目的
+  - 選択中のプリセットでマージ済みのパラメータを使って Bake を実行する
+- 変更内容
+  1. Bake ボタンクリック時に `selected_preset` に応じたマージ済み `ConfigFile` を `spawn_bake()` に渡す
+  2. 出力先はベースの `out` の下にサブディレクトリを自動生成する:
+     - ベース選択時 → `{base.out}/default/`
+     - プリセット選択時 → `{base.out}/{preset_name_slug}/`
+     - プリセットに `out` が明示されている場合 → プリセットの `out`（上記ルールを上書き）
+  3. `preset_name_slug`: プリセット名をファイルシステム安全な形に変換（スペース→ハイフン、記号除去等）
+- Done when
+  - ベース選択で Bake すると `{base.out}/default/` に出力される
+  - プリセット選択で Bake するとプリセットのパラメータが使われ、`{base.out}/{preset_name_slug}/` に出力される
+  - 異なるプリセットで Bake した結果が異なるサブディレクトリに保存される
+  - v1 JSON（presets なし）では従来通り `{out}/` 直下に出力される（サブディレクトリなし）
+
+### 設計上の懸念と対策
+
+| # | 懸念 | 対策 |
+|---|------|------|
+| 1 | **Bake がディスクから JSON を再読みする** — マージ済みパラメータを渡す手段がない | Task M0 で `spawn_bake` を `ConfigFile` 受け取りに変更し、ディスク再読み込みを廃止 |
+| 2 | **デフォルト値の二重適用** — `ConfigInfo::from_config()` と `run_bake_pipeline()` に同じ `.unwrap_or()` が散在 | Task M0 でデフォルト適用関数を一箇所に集約。Task M1 のマージは `Option` レベルで行い、デフォルト適用はマージ後に一度だけ |
+| 3 | **プリセットごとの出力先ルール** — `out` をプリセットで上書きするか、ベースの `out` + プリセット名サブディレクトリか | **[D] 決定**: ベースの `out` の下にサブディレクトリを自動生成。ベース→ `default/`、プリセット→ `{preset_name_slug}/`。プリセットに `out` が明示されていれば上書き。v1（presets なし）は従来通り直下出力 |
+| 4 | **プリセット選択状態の永続化** — GUI 再起動時にどのプリセットを選んでいたか | **[H] 仮説**: v2 初版では保存しない（常にベースで起動）。将来 `last_selected` を別ファイルに保存可能 |
+| 5 | **プリセット名の一意性** — 同名プリセットが複数ある場合 | パース時に重複を警告。UI はインデックスで管理するため動作は壊れない |
+| 6 | **ConfigFile に `Serialize` がない** — テンプ JSON 書き出しやデバッグ表示に不便 | Task M0 で `Clone` の derive を追加。`Serialize` は必要時に追加（方式 A では不要） |
+
 ## 9. 主要な意思決定ポイント
 
 ### 9.0 決定済み
@@ -337,6 +428,8 @@
 - **ファイルダイアログ**: `rfd` クレート
 - **プレビュー方式**: レイマーチ（フラグメントシェーダ）
 - **プレビューテンプレート**: WGSL / GLSL 両方用意（compute テンプレートと同一パターン）
+- **プリセット（v2）**: config を GUI が保持 → プリセットは `Option` レベルの差分マージ → Bake には `ConfigFile` を直接渡す
+- **AABB とプレビューの連動**: AABB は uniform で渡されるため、プリセット切替時にパイプライン再構築は不要（shader 変更時のみ再構築）
 
 ### 9.1 未確定
 
