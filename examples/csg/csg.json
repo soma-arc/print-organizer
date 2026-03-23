@@ -1,8 +1,19 @@
 {
+    "version": 2,
     "shader": "csg.wgsl",
     "out": "output/csg",
     "grid": {
         "aabb_size": [128, 128, 128],
         "brick_size": 64
-    }
+    },
+    "presets": [
+        {
+            "name": "draft",
+            "grid": { "voxel_size": 2.0 }
+        },
+        {
+            "name": "decimated",
+            "mesh": { "adaptivity": 0.5 }
+        }
+    ]
 }

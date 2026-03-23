@@ -1,4 +1,5 @@
 {
+    "version": 2,
     "shader": "gyroid.glsl",
     "out": "output/gyroid-glsl",
     "grid": {
@@ -8,5 +9,16 @@
     },
     "genmesh": {
         "write_vdb": true
-    }
+    },
+    "presets": [
+        {
+            "name": "draft",
+            "grid": { "voxel_size": 2.0 }
+        },
+        {
+            "name": "fine",
+            "grid": { "voxel_size": 0.5 },
+            "mesh": { "adaptivity": 0.2 }
+        }
+    ]
 }
