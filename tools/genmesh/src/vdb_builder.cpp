@@ -137,8 +137,10 @@ bool apply_offset(openvdb::FloatGrid::Ptr& grid, float offset_mm) {
         // For SDF where negative = inside:
         //   - Positive offset value moves surface outward → dilation
         //   - Negative offset value moves surface inward → erosion
+        // Note: We pass *grid (the dereferenced shared_ptr) which gives a reference.
+        // LevelSetFilter stores a reference, so modifications apply to the original grid.
         openvdb::tools::LevelSetFilter<openvdb::FloatGrid> filter(*grid);
-        filter.offset(offset_mm);
+        filter.offset(-offset_mm);  // Negative because we shift the isosurface down to expand
 
         log_info("GENMESH_I0003", "Applied level set offset", {
             {"offset_mm", std::to_string(offset_mm)},
