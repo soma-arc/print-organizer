@@ -31,6 +31,8 @@ pub struct BakeConfig {
     pub dtype: String,
     /// Background (far-field) distance value in world units.
     pub background_value: f32,
+    /// Level set offset for dilation (positive) or erosion (negative) in mm.
+    pub offset_mm: f32,
 }
 
 impl BakeConfig {
@@ -62,7 +64,15 @@ impl BakeConfig {
             adaptivity,
             dtype,
             background_value,
+            offset_mm: 0.0,
         }
+    }
+
+    /// Set the level set offset (builder pattern).
+    #[must_use]
+    pub fn with_offset_mm(mut self, offset_mm: f32) -> Self {
+        self.offset_mm = offset_mm;
+        self
     }
 
     /// Number of bricks along each axis.

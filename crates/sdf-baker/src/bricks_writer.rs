@@ -38,6 +38,7 @@ pub fn write_manifest(dir: &Path, config: &BakeConfig) -> Result<PathBuf> {
         },
         "dtype": config.dtype,
         "background_value_mm": config.background_value,
+        "offset_mm": config.offset_mm,
         "hashes": {},
         "generator": {
             "name": "sdf-baker",

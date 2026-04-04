@@ -80,6 +80,7 @@ pub fn merge_preset(base: &ConfigFile, preset: &PresetEntry) -> ConfigFile {
             Some(pm) => MeshParams {
                 iso: pm.iso.or(base.mesh.iso),
                 adaptivity: pm.adaptivity.or(base.mesh.adaptivity),
+                offset_mm: pm.offset_mm.or(base.mesh.offset_mm),
             },
             None => base.mesh.clone(),
         },
@@ -116,6 +117,7 @@ pub struct BakeParams {
 pub struct MeshParams {
     pub iso: Option<f32>,
     pub adaptivity: Option<f32>,
+    pub offset_mm: Option<f32>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
@@ -254,6 +256,9 @@ pub fn resolve_config(cli: &Cli, config_path: Option<&Path>) -> Result<ResolvedC
     let adaptivity = cfg
         .and_then(|c| c.mesh.adaptivity)
         .unwrap_or(cli.adaptivity);
+    let offset_mm = cfg
+        .and_then(|c| c.mesh.offset_mm)
+        .unwrap_or(cli.offset_mm);
 
     // Genmesh params
     let genmesh_path = if cli.genmesh_path.is_some() {
@@ -287,7 +292,8 @@ pub fn resolve_config(cli: &Cli, config_path: Option<&Path>) -> Result<ResolvedC
 
     let bake_config = BakeConfig::new(
         aabb_min, aabb_size, voxel_size, brick_size, half_width, iso, adaptivity, dtype,
-    );
+    )
+    .with_offset_mm(offset_mm);
 
     Ok(ResolvedConfig {
         shader,
@@ -318,6 +324,7 @@ mod tests {
             half_width: 3,
             iso: 0.0,
             adaptivity: 0.0,
+            offset_mm: 0.0,
             dtype: "f32".to_string(),
             genmesh_path: None,
             skip_genmesh: false,
@@ -633,6 +640,7 @@ mod tests {
             mesh: MeshParams {
                 iso: Some(0.0),
                 adaptivity: Some(0.0),
+                offset_mm: None,
             },
             ..Default::default()
         };

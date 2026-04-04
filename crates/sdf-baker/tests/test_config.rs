@@ -37,6 +37,7 @@ fn cli_with_out(out: &str) -> Cli {
         half_width: 3,
         iso: 0.0,
         adaptivity: 0.0,
+        offset_mm: 0.0,
         dtype: "f32".to_string(),
         genmesh_path: None,
         skip_genmesh: false,

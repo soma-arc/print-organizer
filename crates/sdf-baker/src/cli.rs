@@ -48,6 +48,10 @@ pub struct Cli {
     #[arg(long, default_value_t = 0.0)]
     pub adaptivity: f32,
 
+    /// Level set offset for dilation (positive) or erosion (negative) in mm.
+    #[arg(long, default_value_t = 0.0)]
+    pub offset_mm: f32,
+
     /// Data type for distance values.
     #[arg(long, default_value = "f32", value_parser = ["f32", "f16"])]
     pub dtype: String,

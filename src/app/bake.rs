@@ -53,6 +53,7 @@ fn run_bake_pipeline(
     let half_width = cfg.bake.half_width.unwrap_or(3);
     let iso = cfg.mesh.iso.unwrap_or(0.0);
     let adaptivity = cfg.mesh.adaptivity.unwrap_or(0.0);
+    let offset_mm = cfg.mesh.offset_mm.unwrap_or(0.0);
     let dtype = cfg.bake.dtype.clone().unwrap_or_else(|| "f32".to_string());
     let write_vdb = cfg.genmesh.write_vdb.unwrap_or(false);
     let skip_genmesh = cfg.genmesh.skip.unwrap_or(false);
@@ -60,7 +61,8 @@ fn run_bake_pipeline(
 
     let bake_config = BakeConfig::new(
         aabb_min, aabb_size, voxel_size, brick_size, half_width, iso, adaptivity, dtype,
-    );
+    )
+    .with_offset_mm(offset_mm);
 
     // Resolve shader path
     let (lang, user_sdf) = if let Some(ref shader_rel) = cfg.shader {
