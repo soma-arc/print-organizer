@@ -14,3 +14,8 @@
 - 言語: Rust (edition 2024)
 - フォーマット: `cargo fmt` に従う
 - コミットメッセージ: Conventional Commits 形式 (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`)
+
+## ビルド規約
+
+- genmesh (C++) のビルドは `cmake --build --preset default` または `cmake --build . --config RelWithDebInfo` を使用すること
+- `--config Release` は使用しない（sdf-baker は `RelWithDebInfo` を参照する）
