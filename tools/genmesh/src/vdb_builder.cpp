@@ -4,6 +4,7 @@
 
 #include <openvdb/openvdb.h>
 #include <openvdb/math/Transform.h>
+#include <openvdb/tools/LevelSetFilter.h>
 
 #include <cmath>
 #include <string>
@@ -118,6 +119,38 @@ VdbBuildResult build_vdb(const Manifest& manifest,
     result.ok = true;
     result.exit_code = ExitCode::Success;
     return result;
+}
+
+bool apply_offset(openvdb::FloatGrid::Ptr& grid, float offset_mm) {
+    if (!grid) {
+        log_error(E4001, "Cannot apply offset to null grid");
+        return false;
+    }
+
+    if (offset_mm == 0.0f) {
+        // No offset requested
+        return true;
+    }
+
+    try {
+        // LevelSetFilter::offset shifts the level set surface.
+        // For SDF where negative = inside:
+        //   - Positive offset value moves surface outward → dilation
+        //   - Negative offset value moves surface inward → erosion
+        openvdb::tools::LevelSetFilter<openvdb::FloatGrid> filter(*grid);
+        filter.offset(offset_mm);
+
+        log_info("GENMESH_I0003", "Applied level set offset", {
+            {"offset_mm", std::to_string(offset_mm)},
+            {"active_voxels", std::to_string(grid->activeVoxelCount())},
+        });
+
+        return true;
+
+    } catch (const std::exception& e) {
+        log_error(E4001, std::string("LevelSetFilter::offset failed: ") + e.what());
+        return false;
+    }
 }
 
 }  // namespace genmesh

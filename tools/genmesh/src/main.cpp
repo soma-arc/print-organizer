@@ -214,6 +214,16 @@ int main(int argc, char* argv[]) {
         report.timing_ms.vdb_build = vdb_timer.elapsed_ms();
         report.stats.active_voxel_count = vdb_res.active_voxel_count;
 
+        // ---- 4.5. Apply level set offset (if requested) ----
+        if (manifest.offset_mm != 0.0f) {
+            if (!apply_offset(vdb_res.grid, manifest.offset_mm)) {
+                fail_report(report, Stage::VdbBuild, std::string(E4001),
+                            "vdb", "levelSetOffset failed");
+                try_write_report(report, out_dir, total_timer);
+                return static_cast<int>(ExitCode::ProcessingError);
+            }
+        }
+
         // ---- 5. Mesh extraction ----
         ScopedTimer mesh_timer;
 

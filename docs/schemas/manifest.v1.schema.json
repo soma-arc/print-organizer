@@ -109,6 +109,11 @@
       "maximum": 1.0,
       "description": "メッシュ適応度 (0.0〜1.0)"
     },
+    "offset_mm": {
+      "type": "number",
+      "default": 0.0,
+      "description": "レベルセットオフセット (mm)。正で膨張、負で収縮。任意フィールド。"
+    },
     "narrow_band": {
       "type": "object",
       "description": "ナローバンド設定",

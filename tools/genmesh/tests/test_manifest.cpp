@@ -181,6 +181,40 @@ void test_negative_voxel_size() {
     std::cout << "  PASS: test_negative_voxel_size\n";
 }
 
+void test_offset_mm_optional() {
+    // offset_mm is optional - should succeed without it
+    auto j = valid_base();
+    // valid_base doesn't have offset_mm, should still pass
+    auto path = write_temp_json(j, "_no_offset.json");
+    auto r = genmesh::load_manifest(path);
+    assert(r.ok);
+    assert(r.manifest.offset_mm == 0.0f);  // default
+    std::remove(path.c_str());
+    std::cout << "  PASS: test_offset_mm_optional\n";
+}
+
+void test_offset_mm_positive() {
+    auto j = valid_base();
+    j["offset_mm"] = 2.5;
+    auto path = write_temp_json(j, "_offset_pos.json");
+    auto r = genmesh::load_manifest(path);
+    assert(r.ok);
+    assert(std::abs(r.manifest.offset_mm - 2.5f) < 1e-6f);
+    std::remove(path.c_str());
+    std::cout << "  PASS: test_offset_mm_positive\n";
+}
+
+void test_offset_mm_negative() {
+    auto j = valid_base();
+    j["offset_mm"] = -1.0;
+    auto path = write_temp_json(j, "_offset_neg.json");
+    auto r = genmesh::load_manifest(path);
+    assert(r.ok);
+    assert(std::abs(r.manifest.offset_mm - (-1.0f)) < 1e-6f);
+    std::remove(path.c_str());
+    std::cout << "  PASS: test_offset_mm_negative\n";
+}
+
 int main() {
     // suppress log noise during tests
     genmesh::min_log_level() = genmesh::LogLevel::Error;
@@ -199,6 +233,9 @@ int main() {
     test_background_too_small();
     test_invalid_dtype();
     test_negative_voxel_size();
+    test_offset_mm_optional();
+    test_offset_mm_positive();
+    test_offset_mm_negative();
 
     std::cout << "=== All T1.2 tests passed ===\n";
     return 0;

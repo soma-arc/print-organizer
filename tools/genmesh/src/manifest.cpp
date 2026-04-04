@@ -178,6 +178,12 @@ ManifestResult load_manifest(const std::string& path) {
         add_error(result, E1001, "Missing or invalid adaptivity", "adaptivity");
     }
 
+    // --- offset_mm (optional, default 0.0) ---
+    if (j.contains("offset_mm") && j["offset_mm"].is_number()) {
+        m.offset_mm = j["offset_mm"].get<float>();
+    }
+    // No error if missing — defaults to 0.0 (no offset)
+
     // --- narrow_band ---
     if (j.contains("narrow_band") && j["narrow_band"].is_object() &&
         j["narrow_band"].contains("half_width_voxels")) {

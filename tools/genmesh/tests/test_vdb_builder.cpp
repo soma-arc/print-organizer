@@ -160,6 +160,84 @@ void test_build_vdb_empty_bricks() {
     std::cout << "  PASS: test_build_vdb_empty_bricks\n";
 }
 
+void test_apply_offset_dilate() {
+    // Generate sphere SDF
+    auto gen = genmesh::debug_generate("sphere", 64, 1.0f);
+    assert(gen.ok);
+
+    auto r = genmesh::build_vdb(gen.manifest, gen.bricks);
+    assert(r.ok);
+
+    auto accessor_before = r.grid->getConstAccessor();
+    // Point near surface (inside)
+    float val_before = accessor_before.getValue(openvdb::Coord(31, 31, 6));
+
+    // Apply positive offset (dilation - surface moves outward)
+    bool ok = genmesh::apply_offset(r.grid, 5.0f);
+    assert(ok);
+
+    auto accessor_after = r.grid->getConstAccessor();
+    float val_after = accessor_after.getValue(openvdb::Coord(31, 31, 6));
+
+    // After dilation, the point should be more negative (more inside)
+    assert(val_after < val_before);
+
+    std::cout << "  PASS: test_apply_offset_dilate\n";
+}
+
+void test_apply_offset_erode() {
+    auto gen = genmesh::debug_generate("sphere", 64, 1.0f);
+    assert(gen.ok);
+
+    auto r = genmesh::build_vdb(gen.manifest, gen.bricks);
+    assert(r.ok);
+
+    auto accessor_before = r.grid->getConstAccessor();
+    float val_before = accessor_before.getValue(openvdb::Coord(31, 31, 31));
+
+    // Apply negative offset (erosion - surface moves inward)
+    bool ok = genmesh::apply_offset(r.grid, -3.0f);
+    assert(ok);
+
+    auto accessor_after = r.grid->getConstAccessor();
+    float val_after = accessor_after.getValue(openvdb::Coord(31, 31, 31));
+
+    // After erosion, the center point should be less negative (closer to surface)
+    assert(val_after > val_before);
+
+    std::cout << "  PASS: test_apply_offset_erode\n";
+}
+
+void test_apply_offset_zero() {
+    auto gen = genmesh::debug_generate("sphere", 64, 1.0f);
+    assert(gen.ok);
+
+    auto r = genmesh::build_vdb(gen.manifest, gen.bricks);
+    assert(r.ok);
+
+    auto accessor_before = r.grid->getConstAccessor();
+    float val_before = accessor_before.getValue(openvdb::Coord(31, 31, 31));
+
+    // Zero offset should not change anything
+    bool ok = genmesh::apply_offset(r.grid, 0.0f);
+    assert(ok);
+
+    auto accessor_after = r.grid->getConstAccessor();
+    float val_after = accessor_after.getValue(openvdb::Coord(31, 31, 31));
+
+    assert(std::abs(val_after - val_before) < 1e-6f);
+
+    std::cout << "  PASS: test_apply_offset_zero\n";
+}
+
+void test_apply_offset_null_grid() {
+    openvdb::FloatGrid::Ptr null_grid;
+    bool ok = genmesh::apply_offset(null_grid, 1.0f);
+    assert(!ok);
+
+    std::cout << "  PASS: test_apply_offset_null_grid\n";
+}
+
 int main() {
     genmesh::min_log_level() = genmesh::LogLevel::Error;
 
@@ -172,6 +250,10 @@ int main() {
     test_build_vdb_box();
     test_build_vdb_multi_brick();
     test_build_vdb_empty_bricks();
+    test_apply_offset_dilate();
+    test_apply_offset_erode();
+    test_apply_offset_zero();
+    test_apply_offset_null_grid();
 
     std::cout << "=== All T4 tests passed ===\n";
     return 0;

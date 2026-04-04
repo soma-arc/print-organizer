@@ -32,6 +32,9 @@ struct Manifest {
     float iso = 0.0f;
     float adaptivity = 0.0f;
 
+    // offset (optional, default 0 = no offset)
+    float offset_mm = 0.0f;
+
     // narrow_band
     int half_width_voxels = 0;
 

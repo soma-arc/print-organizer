@@ -41,4 +41,15 @@ openvdb::FloatGrid::Ptr create_grid(const Manifest& manifest);
 VdbBuildResult build_vdb(const Manifest& manifest,
                          const std::vector<BrickData>& bricks);
 
+/// Apply level set offset (dilation/erosion) to a VDB grid.
+///
+/// Subtracts `offset_mm` from all voxel values, effectively:
+/// - offset_mm > 0 → surface moves outward (dilation / thickening)
+/// - offset_mm < 0 → surface moves inward (erosion / thinning)
+/// - offset_mm == 0 → no change
+///
+/// Uses openvdb::tools::levelSetOffset internally.
+/// Returns false if the operation fails.
+bool apply_offset(openvdb::FloatGrid::Ptr& grid, float offset_mm);
+
 }  // namespace genmesh
