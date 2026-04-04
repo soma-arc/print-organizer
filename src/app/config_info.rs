@@ -11,6 +11,7 @@ pub(super) struct ConfigInfo {
     pub half_width: u32,
     pub iso: f32,
     pub adaptivity: f32,
+    pub offset_mm: f32,
     pub genmesh_path: String,
     pub write_vdb: bool,
 }
@@ -53,6 +54,7 @@ impl ConfigInfo {
             half_width,
             iso: cfg.mesh.iso.unwrap_or(0.0),
             adaptivity: cfg.mesh.adaptivity.unwrap_or(0.0),
+            offset_mm: cfg.mesh.offset_mm.unwrap_or(0.0),
             genmesh_path: {
                 let explicit = cfg.genmesh.path.as_ref().map(|p| cfg_dir.join(p));
                 sdf_baker::config::resolve_genmesh_path(explicit)

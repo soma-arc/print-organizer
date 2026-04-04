@@ -599,6 +599,10 @@ impl eframe::App for MyApp {
                         ui.label(format!("{}", info.adaptivity));
                         ui.end_row();
 
+                        ui.label("Offset (mm):");
+                        ui.label(format!("{}", info.offset_mm));
+                        ui.end_row();
+
                         ui.label("genmesh:");
                         ui.label(&info.genmesh_path);
                         ui.end_row();
