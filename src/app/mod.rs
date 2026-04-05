@@ -297,6 +297,86 @@ impl MyApp {
         self.pending_config_reload = None;
     }
 
+    /// Reload the config JSON from `config_path` and update state.
+    /// Unlike `load_config_file`, this preserves `selected_preset` on success
+    /// and preserves all previous state on parse failure (watcher is kept alive).
+    fn reload_config(&mut self, device: &wgpu::Device) {
+        let Some(path) = self.config_path.clone() else {
+            return;
+        };
+        let cfg_dir = path
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .to_path_buf();
+
+        let cfg = match sdf_baker::config::load_config(&path) {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                self.config_error = Some(format!("{e:#}"));
+                self.needs_repaint = true;
+                log::warn!("Config reload failed (keeping previous state): {e:#}");
+                return;
+            }
+        };
+
+        let info = ConfigInfo::from_config(&cfg, &cfg_dir);
+
+        self.out_dir_override = cfg
+            .out
+            .as_ref()
+            .map(|out| cfg_dir.join(out).display().to_string())
+            .unwrap_or_default();
+
+        self.camera = OrbitCamera::from_aabb(info.aabb_min, info.aabb_size);
+
+        // Rebuild preview pipeline from shader (skip if a preset is selected,
+        // because apply_preset below will handle it with the effective config)
+        if self.selected_preset.is_none() {
+            if let Some(ref shader_rel) = cfg.shader {
+                let shader_path = cfg_dir.join(shader_rel);
+                match sdf_baker::shader_compose::load_shader(&shader_path) {
+                    Ok((lang, user_sdf)) => {
+                        self.rebuild_preview_pipeline(device, lang, &user_sdf);
+                    }
+                    Err(e) => {
+                        self.set_shader_error(e);
+                    }
+                }
+                self.start_watching_shader(&shader_path);
+            } else {
+                self.rebuild_preview_pipeline(
+                    device,
+                    sdf_baker::shader_compose::ShaderLang::Wgsl,
+                    sdf_baker::shader_compose::BUILTIN_SPHERE_SDF,
+                );
+                self.stop_watching_shader();
+            }
+        }
+
+        // Clamp selected_preset to valid range
+        let preset_count = cfg.presets.as_ref().map_or(0, |p| p.len());
+        if let Some(idx) = self.selected_preset {
+            if idx >= preset_count {
+                self.selected_preset = None;
+            }
+        }
+
+        self.config = Some(cfg);
+        self.config_dir = Some(cfg_dir);
+        self.config_info = Some(info);
+        self.config_error = None;
+        self.bake_status = BakeStatus::Idle;
+
+        // Re-apply preset if one is selected
+        if self.selected_preset.is_some() {
+            let preset_index = self.selected_preset;
+            self.apply_preset(preset_index, device);
+        }
+
+        self.needs_repaint = true;
+        log::info!("Config reloaded: {}", path.display());
+    }
+
     /// Start watching the shader file for changes.
     /// Drops any previously active watcher.
     fn start_watching_shader(&mut self, shader_path: &std::path::Path) {
@@ -497,6 +577,23 @@ impl eframe::App for MyApp {
                 self.pending_reload = None;
                 if let Some(ref device) = device {
                     self.reload_shader(device);
+                }
+            }
+        }
+
+        // Config hot-reload (debounced)
+        if let Some(rx) = &self.config_watcher_rx {
+            if rx.try_recv().is_ok() {
+                while rx.try_recv().is_ok() {}
+                self.pending_config_reload = Some(Instant::now());
+                ctx.request_repaint_after(Duration::from_millis(200));
+            }
+        }
+        if let Some(t) = self.pending_config_reload {
+            if t.elapsed() >= Duration::from_millis(200) {
+                self.pending_config_reload = None;
+                if let Some(ref device) = device {
+                    self.reload_config(device);
                 }
             }
         }
@@ -897,6 +994,7 @@ impl eframe::App for MyApp {
         if self.needs_repaint
             || matches!(self.bake_status, BakeStatus::Running)
             || self.pending_reload.is_some()
+            || self.pending_config_reload.is_some()
         {
             ctx.request_repaint();
         }
