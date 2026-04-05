@@ -3108,6 +3108,7 @@ dependencies = [
  "rfd",
  "sdf-baker",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

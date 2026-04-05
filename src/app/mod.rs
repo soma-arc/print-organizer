@@ -3,13 +3,13 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use eframe::{egui, wgpu};
-use notify::Watcher as _;
 use sdf_baker::shader_compose::{ShaderDiagnostic, ShaderDiagnostics};
 
 mod bake;
 mod camera;
 mod config_info;
 mod renderer;
+mod watcher;
 
 use bake::{BakeResult, spawn_bake};
 use camera::OrbitCamera;
@@ -249,57 +249,28 @@ impl MyApp {
     fn start_watching_config(&mut self, config_path: &std::path::Path) {
         self.stop_watching_config();
 
-        let (tx, rx) = mpsc::channel();
-        let sender = std::sync::Mutex::new(tx);
-        let watch_path = config_path.to_path_buf();
-        let filter_path = watch_path.clone();
-        let repaint_ctx = self.egui_ctx.clone();
-
-        let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if let Ok(event) = res {
-                use notify::EventKind::*;
-                match event.kind {
-                    Modify(_) | Create(_) | Remove(_) => {
-                        if event.paths.iter().any(|p| p == &filter_path) {
-                            let _ = sender.lock().unwrap().send(());
-                            if let Some(ref ctx) = repaint_ctx {
-                                ctx.request_repaint();
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
-
-        match watcher {
-            Ok(mut w) => {
-                let watch_dir = watch_path.parent().unwrap_or(std::path::Path::new("."));
-                if w.watch(watch_dir, notify::RecursiveMode::NonRecursive).is_ok() {
-                    self._config_watcher = Some(w);
-                    self.config_watcher_rx = Some(rx);
-                    self.pending_config_reload = None;
-                    log::info!("Watching config: {}", config_path.display());
-                } else {
-                    log::warn!("Failed to watch config directory: {}", watch_dir.display());
-                }
+        match watcher::watch_file(config_path, self.egui_ctx.clone()) {
+            Ok((w, rx)) => {
+                self._config_watcher = Some(w);
+                self.config_watcher_rx = Some(rx);
+                self.pending_config_reload = None;
+                log::info!("Watching config: {}", config_path.display());
             }
             Err(e) => {
-                log::warn!("Failed to create config file watcher: {e}");
+                log::warn!("Failed to watch config file: {e}");
             }
         }
     }
 
-    /// Stop watching the config JSON file.
+    /// Stop watching the config file.
     fn stop_watching_config(&mut self) {
         self._config_watcher = None;
         self.config_watcher_rx = None;
         self.pending_config_reload = None;
     }
 
-    /// Reload the config JSON from `config_path` and update state.
-    /// Unlike `load_config_file`, this preserves `selected_preset` on success
-    /// and preserves all previous state on parse failure (watcher is kept alive).
+    /// Reload config from currently watched config_path.
+    /// Preserves state on parse failure (watcher stays alive, only config_error is set).
     fn reload_config(&mut self, device: &wgpu::Device) {
         let Some(path) = self.config_path.clone() else {
             return;
@@ -313,8 +284,7 @@ impl MyApp {
             Ok(cfg) => cfg,
             Err(e) => {
                 self.config_error = Some(format!("{e:#}"));
-                self.needs_repaint = true;
-                log::warn!("Config reload failed (keeping previous state): {e:#}");
+                log::warn!("Config reload failed: {e:#}");
                 return;
             }
         };
@@ -383,49 +353,16 @@ impl MyApp {
         // Always drop the previous watcher first
         self.stop_watching_shader();
 
-        let (tx, rx) = mpsc::channel();
-        let sender = std::sync::Mutex::new(tx);
-        let watch_path = shader_path.to_path_buf();
-        let filter_path = watch_path.clone();
-        let repaint_ctx = self.egui_ctx.clone();
-
-        let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if let Ok(event) = res {
-                use notify::EventKind::*;
-                match event.kind {
-                    Modify(_) | Create(_) | Remove(_) => {
-                        // Only trigger if the event involves the watched shader file
-                        if event.paths.iter().any(|p| p == &filter_path) {
-                            let _ = sender.lock().unwrap().send(());
-                            // Wake the event loop even when the window is unfocused
-                            if let Some(ref ctx) = repaint_ctx {
-                                ctx.request_repaint();
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        });
-
-        match watcher {
-            Ok(mut w) => {
-                // Watch the parent directory to catch rename-based atomic saves
-                let watch_dir = watch_path.parent().unwrap_or(std::path::Path::new("."));
-                if w.watch(watch_dir, notify::RecursiveMode::NonRecursive)
-                    .is_ok()
-                {
-                    self._watcher = Some(w);
-                    self.watcher_rx = Some(rx);
-                    self.resolved_shader_path = Some(watch_path);
-                    self.pending_reload = None;
-                    log::info!("Watching shader: {}", shader_path.display());
-                } else {
-                    log::warn!("Failed to watch directory: {}", watch_dir.display());
-                }
+        match watcher::watch_file(shader_path, self.egui_ctx.clone()) {
+            Ok((w, rx)) => {
+                self._watcher = Some(w);
+                self.watcher_rx = Some(rx);
+                self.resolved_shader_path = Some(shader_path.to_path_buf());
+                self.pending_reload = None;
+                log::info!("Watching shader: {}", shader_path.display());
             }
             Err(e) => {
-                log::warn!("Failed to create file watcher: {e}");
+                log::warn!("Failed to watch shader file: {e}");
             }
         }
     }
