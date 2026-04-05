@@ -108,6 +108,14 @@ pub struct MyApp {
     resolved_shader_path: Option<PathBuf>,
     /// egui context for requesting repaints from background threads
     egui_ctx: Option<egui::Context>,
+
+    // --- config hot-reload ---
+    /// File watcher for the config JSON
+    _config_watcher: Option<notify::RecommendedWatcher>,
+    /// Receives notifications from the config file watcher
+    config_watcher_rx: Option<mpsc::Receiver<()>>,
+    /// Debounce: timestamp of last config watcher event
+    pending_config_reload: Option<Instant>,
 }
 
 impl MyApp {
@@ -166,6 +174,10 @@ impl MyApp {
             pending_reload: None,
             resolved_shader_path: None,
             egui_ctx: None,
+
+            _config_watcher: None,
+            config_watcher_rx: None,
+            pending_config_reload: None,
         }
     }
 
@@ -226,9 +238,63 @@ impl MyApp {
                 self.stop_watching_shader();
             }
         }
-        self.config_path = Some(path);
+        self.config_path = Some(path.clone());
+        self.start_watching_config(&path);
         self.bake_status = BakeStatus::Idle;
         self.needs_repaint = true;
+    }
+
+    /// Start watching the config JSON file for changes.
+    /// Drops any previously active config watcher first.
+    fn start_watching_config(&mut self, config_path: &std::path::Path) {
+        self.stop_watching_config();
+
+        let (tx, rx) = mpsc::channel();
+        let sender = std::sync::Mutex::new(tx);
+        let watch_path = config_path.to_path_buf();
+        let filter_path = watch_path.clone();
+        let repaint_ctx = self.egui_ctx.clone();
+
+        let watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+            if let Ok(event) = res {
+                use notify::EventKind::*;
+                match event.kind {
+                    Modify(_) | Create(_) | Remove(_) => {
+                        if event.paths.iter().any(|p| p == &filter_path) {
+                            let _ = sender.lock().unwrap().send(());
+                            if let Some(ref ctx) = repaint_ctx {
+                                ctx.request_repaint();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        match watcher {
+            Ok(mut w) => {
+                let watch_dir = watch_path.parent().unwrap_or(std::path::Path::new("."));
+                if w.watch(watch_dir, notify::RecursiveMode::NonRecursive).is_ok() {
+                    self._config_watcher = Some(w);
+                    self.config_watcher_rx = Some(rx);
+                    self.pending_config_reload = None;
+                    log::info!("Watching config: {}", config_path.display());
+                } else {
+                    log::warn!("Failed to watch config directory: {}", watch_dir.display());
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to create config file watcher: {e}");
+            }
+        }
+    }
+
+    /// Stop watching the config JSON file.
+    fn stop_watching_config(&mut self) {
+        self._config_watcher = None;
+        self.config_watcher_rx = None;
+        self.pending_config_reload = None;
     }
 
     /// Start watching the shader file for changes.
